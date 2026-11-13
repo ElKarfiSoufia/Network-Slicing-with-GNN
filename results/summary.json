@@ -1,0 +1,8 @@
+{
+ "n_sims": 7127,
+ "n_flows": 1576669,
+ "n_classes": 263287,
+ "n_topologies": 162,
+ "events_share": 0.13593341405202994,
+ "best_epoch": 36
+}

@@ -1,0 +1,3 @@
+ridge_no_allocation : 2 s, {'y_delay': {'alpha': 0.01}, 'y_loss': {'alpha': 0.01}}
+hgb_no_allocation : 146 s, {'y_delay': {'learning_rate': 0.05, 'max_leaf_nodes': 31, 'min_samples_leaf': 20}, 'y_loss': {'learning_rate': 0.05, 'max_leaf_nodes': 31, 'min_samples_leaf': 20}}
+mlp_no_allocation : 8 s, {'hidden': [128, 128]}

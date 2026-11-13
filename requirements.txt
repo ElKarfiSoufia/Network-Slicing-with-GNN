@@ -1,0 +1,10 @@
+# Python 3.11 — versions utilisées pour les résultats du rapport
+numpy==2.4.6
+pandas==2.3.3
+pyarrow==25.0.1
+scikit-learn==1.9.1
+torch==2.13.0          # installer la variante CUDA depuis pytorch.org pour entraîner le GNN sur GPU
+networkx==3.6.1
+matplotlib==3.11.0
+nbformat
+jupyter

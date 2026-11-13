@@ -1,0 +1,34 @@
+{
+ "features": [
+  "is_eMBB",
+  "is_URLLC",
+  "is_mMTC",
+  "log_offered",
+  "log_pkt_size",
+  "delta",
+  "wfq_weight",
+  "log_reserved",
+  "log_port_cap",
+  "n_queues_port",
+  "hops",
+  "log_cap_path_min",
+  "n_nodes",
+  "n_flows_sim",
+  "n_antennas",
+  "log_qdelay_full",
+  "log_path_delay_full"
+ ],
+ "best": {
+  "y_delay": {
+   "learning_rate": 0.05,
+   "max_leaf_nodes": 127,
+   "min_samples_leaf": 20
+  },
+  "y_loss": {
+   "learning_rate": 0.05,
+   "max_leaf_nodes": 127,
+   "min_samples_leaf": 200
+  }
+ },
+ "time_s": 167.90151000022888
+}

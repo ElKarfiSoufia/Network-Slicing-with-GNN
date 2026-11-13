@@ -1,0 +1,174 @@
+%=====================================================================
+\chapter{État de l'art : network slicing et réseaux de neurones sur graphes}\label{chap:sota}
+%=====================================================================
+Ce chapitre pose les notions nécessaires au reste du rapport. La section~\ref{sec:sota-slicing} présente le network slicing et ses exigences. La section~\ref{sec:sota-alloc} décrit le problème d'allocation des ressources entre slices et les approches qui le traitent. La section~\ref{sec:sota-gnn} introduit les réseaux de neurones sur graphes (\gnn), et la section~\ref{sec:sota-gnnnet} leurs applications aux réseaux de communication. La section~\ref{sec:sota-position} situe notre travail par rapport à cet état de l'art et annonce la démarche des chapitres suivants.
+
+%---------------------------------------------------------------------
+\section{Le network slicing en 5G et au-delà}\label{sec:sota-slicing}
+%---------------------------------------------------------------------
+\subsection{Trois familles d'usages aux exigences opposées}
+La recommandation ITU-R M.2083~\cite{itu2083} définit trois scénarios d'usage pour les réseaux IMT-2020 (5G) :
+\begin{itemize}
+  \item \textbf{eMBB} (\emph{enhanced Mobile Broadband}) : très haut débit pour la vidéo, la réalité virtuelle, l'accès fixe sans fil. Les objectifs sont de 20~Gbit/s en débit crête et de 100~Mbit/s en débit perçu par l'utilisateur ;
+  \item \textbf{URLLC} (\emph{Ultra-Reliable Low-Latency Communications}) : contrôle industriel, véhicules, chirurgie à distance. Les objectifs sont une latence de 1~ms sur l'interface radio et une fiabilité de $1-10^{-5}$ pour un paquet de 32 octets~\cite{tr38913} ;
+  \item \textbf{mMTC} (\emph{massive Machine-Type Communications}, appelée mIoT dans le dataset) : capteurs et objets connectés en très grand nombre, jusqu'à $10^6$ terminaux par km², avec un faible débit et une forte tolérance au délai.
+\end{itemize}
+Ces exigences sont contradictoires. Un réseau unique dimensionné pour la plus exigeante de chaque contrainte coûterait très cher ; un réseau dimensionné « en moyenne » ne satisferait personne. Le \emph{network slicing} répond à ce dilemme.
+
+\subsection{Définition et normalisation}
+Une \textbf{slice} est un réseau logique de bout en bout, isolé et doté de ses propres caractéristiques, construit sur une infrastructure physique partagée. Le concept a été popularisé par le livre blanc 5G de l'alliance NGMN~\cite{ngmn}, puis normalisé par le 3GPP. Dans l'architecture 5G (TS~23.501~\cite{ts23501}), chaque slice est identifiée par un S-NSSAI qui contient un type de service (\emph{Slice/Service Type}). Les valeurs normalisées 1, 2 et 3 désignent précisément eMBB, URLLC et MIoT : ce sont les trois types de slices du dataset étudié. La gestion du cycle de vie d'une slice (préparation, mise en service, exploitation, retrait) est décrite par la TS~28.530~\cite{ts28530}.
+
+Le slicing repose sur deux technologies de « softwarisation »~\cite{afolabi,foukas} :
+\begin{itemize}
+  \item la \textbf{virtualisation des fonctions réseau} (NFV), qui exécute les fonctions du cœur de réseau sur des serveurs génériques ;
+  \item les \textbf{réseaux définis par logiciel} (SDN), qui séparent le plan de contrôle du plan de données et permettent de programmer l'acheminement et l'ordonnancement.
+\end{itemize}
+Une slice traverse tous les domaines du réseau : l'accès radio, le réseau de transport et le cœur~\cite{rost}. Le dataset étudié couvre le \textbf{transport}, avec des antennes en entrée (chapitre~\ref{chap:data}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  >=Stealth, font=\small,
+  infra/.style={draw=muted, fill=black!4, rounded corners=3pt, minimum height=9mm, align=center},
+  sl/.style={rounded corners=3pt, minimum height=7mm, align=center, text=white, font=\small\bfseries}]
+\node[infra, minimum width=12.6cm] (phy) at (0,0) {Infrastructure physique partagée : antennes, liens de transport, serveurs du cœur};
+\node[sl, fill=embb, minimum width=12.6cm] (e) at (0,1.15) {Slice eMBB : débit élevé (vidéo, réalité virtuelle)};
+\node[sl, fill=urllc, minimum width=12.6cm] (u) at (0,2.05) {Slice URLLC : latence < 1 ms, fiabilité $1-10^{-5}$ (industrie, véhicules)};
+\node[sl, fill=mmtc, minimum width=12.6cm] (m) at (0,2.95) {Slice mMTC : $10^6$ objets / km², faible débit (capteurs)};
+\node[draw=inptblue, thick, rounded corners=3pt, fit=(e)(u)(m), inner sep=4pt, label={[font=\small, text=inptblue]right:\rotatebox{90}{SDN / NFV}}] {};
+\node[font=\footnotesize, text=muted, align=center] at (0,-0.85) {Chaque slice reçoit une part réservée des ressources partagées : c'est le problème d'allocation.};
+\end{tikzpicture}
+\caption{Principe du network slicing : trois réseaux logiques isolés sur une même infrastructure.}
+\label{fig:slicing}
+\end{figure}
+
+%---------------------------------------------------------------------
+\section{L'allocation des ressources entre slices}\label{sec:sota-alloc}
+%---------------------------------------------------------------------
+\subsection{Le compromis isolation / mutualisation}
+Allouer les ressources entre slices revient à arbitrer entre deux objectifs~\cite{foukas,afolabi}.
+\begin{itemize}
+  \item \textbf{L'isolation} : chaque slice doit tenir son SLA quoi que fassent les autres. Cela pousse à réserver largement (\emph{sur-provisionnement}), au prix de capacités inutilisées.
+  \item \textbf{La mutualisation} (gain de multiplexage statistique) : les slices n'atteignent pas leur pic en même temps, donc on peut réserver moins que la somme des pics. Mais on risque alors le \emph{sous-provisionnement} quand la demande change brusquement.
+\end{itemize}
+L'allocation doit donc être \textbf{dynamique}, c'est-à-dire réajustée quand la charge évolue. Elle doit aussi être \textbf{vérifiée} : on veut savoir, avant de l'appliquer, si une nouvelle allocation respecte les SLA.
+
+\subsection{Le mécanisme d'ordonnancement : WFQ}
+Au niveau d'un port de sortie, le partage de capacité entre slices est réalisé par un ordonnanceur multi-files. Le modèle de référence est le \emph{Generalized Processor Sharing} (GPS) de Parekh et Gallager~\cite{gps}. Chaque file $i$ reçoit un poids $\phi_i$ et se voit garantir un débit d'au moins
+\begin{equation}
+g_i=\frac{\phi_i}{\sum_j \phi_j}\,C,
+\end{equation}
+où $C$ est la capacité du port. Le GPS est \emph{conservatif} : la capacité non utilisée par une file vide est redistribuée aux autres, au prorata de leurs poids. Le \emph{Weighted Fair Queuing} (WFQ)~\cite{wfq} est la version par paquets de GPS : il l'approche à un temps de transmission de paquet près. Dans le dataset étudié, chaque antenne applique WFQ avec une file par slice, et le poids de la file est la réservation de la slice. C'est le levier d'allocation que nous modélisons.
+
+\subsection{Pourquoi la QoS est-elle difficile à prédire ?}
+La théorie des files d'attente explique la non-linéarité du problème. Dans le modèle M/M/1 (arrivées poissonniennes de taux $\lambda$, service exponentiel de taux $\mu$), le temps moyen passé dans le système vaut~\cite{kleinrock}
+\begin{equation}
+T=\frac{1}{\mu-\lambda}=\frac{1}{\mu}\cdot\frac{1}{1-\rho},\qquad \rho=\frac{\lambda}{\mu}.
+\end{equation}
+Le délai \textbf{explose quand la charge $\rho$ approche 1}. Au-delà, avec une file de taille finie $B$, la file reste pleine : des paquets sont perdus et le délai sature autour de $B\,L/\mu$, le temps de vider $B$ paquets de taille $L$. La QoS change donc de \emph{régime} autour de $\rho=1$. Une petite variation de charge ou de réservation peut faire passer une slice d'un délai de quelques microsecondes à plusieurs millisecondes. C'est exactement le comportement observé dans le dataset (figure~\ref{fig:knee}, chapitre~\ref{chap:data}).
+
+Dans un réseau, ces files sont de plus \textbf{couplées}. Les pertes subies par un flux sur un lien en amont réduisent la charge qu'il impose en aval. Les flux qui partagent un lien se ralentissent mutuellement. Les formules de file isolée ne s'appliquent plus : il faudrait résoudre un problème de point fixe à l'échelle du réseau entier.
+
+\subsection{Trois familles d'approches}
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}>{\raggedright}p{2.6cm}>{\raggedright}X>{\raggedright\arraybackslash}X@{}}
+\toprule
+Approche & Principe & Limites\\
+\midrule
+Modèles analytiques & théorie des files d'attente (M/M/1, réseaux de Jackson) ; bornes de délai GPS~\cite{gps,kleinrock} & hypothèses fortes (trafic poissonnien, indépendance) ; mal adaptés aux régimes saturés et aux ordonnancements multi-files couplés\\
+Simulation à événements discrets & simulateurs paquet comme OMNeT++~\cite{omnet}, qui reproduisent fidèlement le réseau & coûteuse : de quelques minutes à plusieurs heures par configuration dans le dataset étudié ; inutilisable dans une boucle d'optimisation\\
+Apprentissage automatique & modèle appris sur des simulations ou des mesures : prévision de capacité par slice (DeepCog~\cite{deepcog}), prédiction de performance~\cite{routenet} & dépend des données ; risque de mal généraliser hors du régime d'entraînement\\
+\bottomrule
+\end{tabularx}
+\caption{Approches pour évaluer une allocation de ressources entre slices.}
+\label{tab:approaches}
+\end{table}
+Un modèle appris, rapide et fidèle, peut servir de \textbf{jumeau numérique du réseau}~\cite{digitaltwin} : une réplique logicielle qui évalue en millisecondes la conséquence d'une configuration avant de l'appliquer. Reste à choisir un modèle qui respecte la \emph{structure} du réseau. C'est la motivation des réseaux de neurones sur graphes.
+
+%---------------------------------------------------------------------
+\section{Les réseaux de neurones sur graphes}\label{sec:sota-gnn}
+%---------------------------------------------------------------------
+\subsection{Données relationnelles et invariance aux permutations}
+Un graphe $G=(V,E)$ est formé de nœuds $V$ reliés par des arêtes $E$. Chaque nœud $v$ porte un vecteur d'attributs $x_v$. Les réseaux de neurones classiques traitent des vecteurs, des grilles (images) ou des séquences (texte). Un graphe n'a ni taille fixe ni ordre naturel de ses nœuds : un modèle sur graphe doit donc donner le même résultat quelle que soit la numérotation des nœuds (\emph{invariance} ou \emph{équivariance aux permutations}~\cite{battaglia}). Concaténer les attributs des nœuds dans un vecteur ne respecte pas cette propriété.
+
+\subsection{Le passage de messages}
+Presque tous les \gnn{} modernes suivent le cadre du \emph{message passing} formalisé par Gilmer et al.~\cite{mpnn}. À l'itération (ou couche) $t$, chaque nœud agrège les messages de ses voisins, puis met à jour son état :
+\begin{equation}
+m_v^{(t)}=\operatorname{AGG}\Big(\big\{\!\!\big\{\phi^{(t)}\big(h_v^{(t)},h_u^{(t)},e_{uv}\big):u\in\mathcal N(v)\big\}\!\!\big\}\Big),\qquad
+h_v^{(t+1)}=\operatorname{UPD}^{(t)}\big(h_v^{(t)},m_v^{(t)}\big),
+\label{eq:mp}
+\end{equation}
+avec $h_v^{(0)}=x_v$. L'agrégation AGG (somme, moyenne, maximum, attention) est insensible à l'ordre des voisins, ce qui garantit l'équivariance. Après $T$ itérations, l'état d'un nœud dépend de tout son voisinage à $T$ sauts : le \gnn{} apprend des \emph{interactions}, ce qu'un modèle à features indépendantes ne peut pas faire.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[>=Stealth, font=\small,
+  n/.style={circle, draw=muted, minimum size=7mm, inner sep=0pt},
+  c/.style={n, fill=embb!25}, o/.style={n, fill=black!6}]
+\node[c] (v) at (0,0) {$v$};
+\node[o] (a) at (-1.6,1.0) {$u_1$};
+\node[o] (b) at (-1.8,-0.8) {$u_2$};
+\node[o] (c) at (1.5,1.1) {$u_3$};
+\node[o] (d) at (1.7,-0.9) {$u_4$};
+\node[o] (e) at (-3.2,0.2) {$w$};
+\draw (v)--(a) (v)--(b) (v)--(c) (v)--(d) (a)--(e) (b)--(e);
+\draw[->, very thick, urllc] (a) -- (v); \draw[->, very thick, urllc] (b) -- (v);
+\draw[->, very thick, urllc] (c) -- (v); \draw[->, very thick, urllc] (d) -- (v);
+\node[font=\footnotesize, align=center] at (0,-1.8) {itération 1 : $v$ agrège $u_1,\dots,u_4$\\itération 2 : l'information de $w$ atteint $v$ via $u_1, u_2$};
+\node[draw=muted, rounded corners=3pt, align=left, font=\footnotesize] at (6.0,0) {1. message $\phi(h_v,h_u,e_{uv})$ par voisin\\2. agrégation insensible à l'ordre\\3. mise à jour $h_v\leftarrow\operatorname{UPD}(h_v,m_v)$\\répété $T$ fois $\Rightarrow$ champ réceptif de $T$ sauts};
+\end{tikzpicture}
+\caption{Le passage de messages : chaque nœud agrège l'information de ses voisins, itération après itération.}
+\label{fig:mp}
+\end{figure}
+
+\subsection{Les principales architectures}
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}>{\raggedright}p{2.6cm}>{\raggedright}X>{\raggedright\arraybackslash}X@{}}
+\toprule
+Architecture & Agrégation & Intérêt et limites\\
+\midrule
+GCN~\cite{gcn} & moyenne normalisée par les degrés, poids partagés & simple et efficace ; suppose un graphe homogène ; transductif dans sa forme d'origine\\
+GraphSAGE~\cite{sage} & moyenne, max ou LSTM sur un échantillon de voisins & inductif : s'applique à des graphes jamais vus ; agrège un \emph{ensemble} sans ordre\\
+GAT~\cite{gat} / GATv2~\cite{gatv2} & moyenne pondérée par une attention apprise & pondère les voisins selon leur pertinence ; GATv2 corrige l'attention « statique » de GAT\\
+GIN~\cite{gin} & somme suivie d'un MLP & aussi expressif que le test de Weisfeiler-Lehman ; la somme distingue des multi-ensembles que la moyenne confond\\
+Gated GNN~\cite{ggnn} & mise à jour par une cellule GRU~\cite{gru} & mémoire entre itérations, adaptée aux itérations nombreuses\\
+R-GCN~\cite{rgcn}, HAN~\cite{han} & poids distincts par type de relation ou de nœud & graphes \emph{hétérogènes} (plusieurs types de nœuds et d'arêtes)\\
+\bottomrule
+\end{tabularx}
+\caption{Principales familles de \gnn{} et leurs propriétés.}
+\label{tab:gnnfamilies}
+\end{table}
+Le choix de l'agrégation n'est pas neutre. Xu et al.~\cite{gin} montrent que la somme conserve le \emph{nombre} de voisins, que la moyenne ne capture que leur \emph{distribution}, et que le maximum ne retient qu'un \emph{ensemble}. Quand le nombre de voisins varie de plusieurs ordres de grandeur, la somme peut aussi déstabiliser l'apprentissage. Le compromis courant consiste à moyenner et à donner le nombre de voisins comme attribut ; c'est notre choix au chapitre~\ref{chap:gnn}.
+
+\subsection{Limites connues}
+\begin{itemize}
+  \item \textbf{Sur-lissage} (\emph{over-smoothing}) : en empilant de nombreuses couches de type GCN, les états des nœuds deviennent indiscernables~\cite{oversmoothing}.
+  \item \textbf{Sur-compression} (\emph{over-squashing}) : l'information de voisinages lointains et nombreux est compressée dans un vecteur de taille fixe~\cite{oversquashing}. C'est problématique quand la cible dépend de dépendances à longue distance.
+  \item \textbf{Généralisation hors distribution} : rien ne garantit qu'un \gnn{} entraîné sur de petits graphes reste précis sur de grands graphes, même si son architecture s'y applique sans modification~\cite{datasetshift}.
+\end{itemize}
+Ces limites guident notre protocole : nous évaluons sur des topologies inédites et sur des réseaux plus grands que ceux de l'entraînement.
+
+%---------------------------------------------------------------------
+\section{Les GNN pour les réseaux de communication}\label{sec:sota-gnnnet}
+%---------------------------------------------------------------------
+Un réseau de communication est naturellement un graphe. Les \gnn{} y sont appliqués à la modélisation de performance, au routage, à l'allocation de ressources radio et à la planification~\cite{suarez,jiang}.
+\begin{itemize}
+  \item \textbf{RouteNet}~\cite{routenet} prédit le délai, la gigue et les pertes de chaque flux à partir de la topologie, du routage et de la matrice de trafic. Son idée clé est de ne pas utiliser le graphe physique, mais un graphe \emph{biparti flux--liens}. Chaque flux est relié aux liens qu'il traverse. Un GRU parcourt le chemin de chaque flux, dans l'ordre, et les liens agrègent les états des flux qui les traversent ; ces deux étapes sont répétées $T$ fois. RouteNet généralise à des topologies non vues à l'entraînement.
+  \item \textbf{RouteNet-Fermi}~\cite{routenetf} ajoute des nœuds « file » pour modéliser des ports à plusieurs files avec différents ordonnancements (FIFO, priorité stricte, WFQ, DRR) et différents modèles de trafic. C'est l'architecture la plus proche de notre problème, où le levier est un ordonnancement WFQ par slice.
+  \item Pour la \textbf{gestion des ressources radio}, des \gnn{} apprennent directement des politiques d'allocation de puissance ou de bande~\cite{eisen,shen}. Ils exploitent l'équivariance aux permutations pour passer à l'échelle sur des réseaux de taille variable.
+  \item Ces modèles sont présentés comme les briques de \textbf{jumeaux numériques de réseau}~\cite{digitaltwin}, capables d'évaluer des « et si ? » sans simulation.
+\end{itemize}
+Ces travaux visent surtout la précision moyenne sur des configurations semblables à l'entraînement. Deux questions restent peu étudiées : l'effet des \emph{réservations de slices} comme variable de décision, et la \emph{fiabilité} des prédictions quand le réseau sort brusquement de son régime habituel.
+
+%---------------------------------------------------------------------
+\section{Positionnement et démarche}\label{sec:sota-position}
+%---------------------------------------------------------------------
+Cet état de l'art conduit à trois constats qui structurent notre travail.
+\begin{enumerate}
+  \item \textbf{La QoS d'une slice est non linéaire et couplée} : régime de saturation autour de $\rho=1$, et interactions entre flux qui partagent des files et des liens. C'est l'argument théorique en faveur d'un modèle relationnel, et c'est une hypothèse que nous \emph{testons} plutôt que d'admettre (ablation du chapitre~\ref{chap:res}).
+  \item \textbf{Un \gnn{} n'est pertinent que si son graphe porte le levier de décision.} En nous inspirant de RouteNet-Fermi, nous représentons explicitement les files WFQ par slice, où s'applique la réservation $\delta$.
+  \item \textbf{La valeur d'un modèle se juge aussi hors régime habituel.} Nous définissons des événements (changements brusques de charge) et nous mesurons la robustesse de chaque modèle pendant ces événements. Nous comparons le \gnn{} à des références sans graphe exigeantes, et non à une seule baseline faible.
+\end{enumerate}
+La suite du rapport suit cette logique. Le chapitre~\ref{chap:data} explore le dataset et en corrige les défauts. Le chapitre~\ref{chap:pb} formule le problème comme un jumeau numérique et fixe un protocole sans fuite d'information. Les chapitres~\ref{chap:base} à~\ref{chap:gnn} construisent les références, les événements et le \gnn. Le chapitre~\ref{chap:res} compare tous les modèles, et les chapitres~\ref{chap:disc} et~\ref{chap:concl} répondent à la question finale du guide.

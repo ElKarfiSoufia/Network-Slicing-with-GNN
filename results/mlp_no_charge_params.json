@@ -1,0 +1,28 @@
+{
+ "features": [
+  "is_eMBB",
+  "is_URLLC",
+  "is_mMTC",
+  "log_offered",
+  "log_pkt_size",
+  "delta",
+  "wfq_weight",
+  "log_reserved",
+  "log_port_cap",
+  "n_queues_port",
+  "hops",
+  "log_cap_path_min",
+  "n_nodes",
+  "n_flows_sim",
+  "n_antennas",
+  "log_qdelay_full",
+  "log_path_delay_full"
+ ],
+ "best": {
+  "hidden": [
+   128,
+   128
+  ]
+ },
+ "time_s": 16.800803184509277
+}

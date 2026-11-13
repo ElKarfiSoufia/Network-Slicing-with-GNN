@@ -1,0 +1,40 @@
+# Dataset brut et données intermédiaires (≈ 7 Go) : voir data/README.md
+data/*
+!data/README.md
+
+# Prédictions par flux (régénérées par run_all.sh, ≈ 50 Mo)
+results/*_preds.parquet
+
+# Python
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# LaTeX (fichiers auxiliaires)
+*.aux
+*.log
+*.toc
+*.lof
+*.lot
+*.bbl
+*.blg
+*.synctex.gz
+*.fdb_latexmk
+*.fls
+*.nav
+*.snm
+rapport/*.out
+
+# Node / éditeurs / système
+node_modules/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+~$*
+
+# Document du cours (non versionné)
+guide projet GNN.pdf

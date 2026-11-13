@@ -1,0 +1,19 @@
+variable,signification,type,rôle potentiel,justification
+slice_type,"type de slice du flux (eMBB, URLLC, mMTC)",catégorielle,demande,"fixe débit, taille de paquet et exigences (SLA)"
+delta,paramètre δ de réservation de la slice,"réel [0,1]",ressource,levier de l'opérateur : fixe la réservation entre 90 % et 120 % du nominal
+bandwidth (demand_bw),débit nominal déclaré du flux,réel (bit/s),demande,"18 Mb/s eMBB, 3,5 Mb/s URLLC, 0,2 Mb/s mMTC"
+avg_pkts_lambda,paquets générés par seconde (Poisson),réel,demande,intensité réelle du trafic
+pkt_size,taille moyenne réelle des paquets (binomiale),réel (bits),demande,corrigée : le champ « AvgPktSize » est incohérent pour eMBB/mMTC
+offered,débit offert réel = λ × taille,réel (bit/s),demande,"1,25 × nominal pour eMBB et mMTC ; égal au débit mesuré"
+path / links,chemin du flux (liste de nœuds / liens),liste d'entiers,contexte,définit les ressources partagées par le flux
+wfq_weight,poids WFQ (%) de la file du flux au port de l'antenne,réel,ressource,part de capacité réservée à la slice
+capacity,capacité d'un lien,réel (bit/s),ressource,25 à 400 Mb/s
+schedulingPolicy / levelsQoS,ordonnancement et nombre de files d'un nœud,catégorielle / entier,ressource,"WFQ multi-files aux antennes, FIFO ailleurs"
+queueSizes,taille des files (paquets),entier,ressource,constante = 32 : non informative
+"n_nodes, n_antennas, n_flows",taille du réseau simulé,entier,contexte,16 à 765 nœuds ; teste la généralisation
+delay (AvgDelay),délai moyen par paquet du flux,réel (s),QoS → cible,de 10 µs à > 100 s : modélisé en log10
+"p10…p90, jitter",percentiles et variance du délai,réels,QoS,très corrélés au délai moyen (non utilisés)
+pkts_drop / pkts_gen,taux de pertes du flux,"réel [0,1]",QoS → cible,seconde cible
+"meas_util, meas_loss (liens, files)",utilisation et pertes mesurées,"réels [0,1]",QoS (sortie),mesures de sortie : interdites comme features (fuite)
+global_delay / losses / packets,agrégats réseau mesurés,réels,QoS (sortie),analyse uniquement
+"sim_time, stability",durée et critère de stabilité de la simulation,réels,qualité,simulations non stables déjà écartées

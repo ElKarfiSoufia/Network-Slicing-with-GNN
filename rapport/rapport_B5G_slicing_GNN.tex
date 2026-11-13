@@ -1,0 +1,562 @@
+\documentclass[11pt,a4paper]{report}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[french]{babel}
+\usepackage[a4paper,margin=2.4cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,fit,backgrounds}
+\usepackage{adjustbox}
+\usepackage{newunicodechar}
+\newunicodechar{Δ}{\ensuremath{\Delta}}
+\newunicodechar{µ}{\ensuremath{\mu}}
+\newunicodechar{≥}{\ensuremath{\geq}}
+\newunicodechar{≤}{\ensuremath{\leq}}
+\newunicodechar{×}{\ensuremath{\times}}
+\newunicodechar{≈}{\ensuremath{\approx}}
+\newunicodechar{→}{\ensuremath{\rightarrow}}
+\newunicodechar{−}{\ensuremath{-}}
+\usepackage[colorlinks=true,linkcolor=blue!50!black,citecolor=blue!50!black,urlcolor=blue!50!black]{hyperref}
+
+% Figures produites par le notebook (../figures) ; logo INPT dans le dossier de la plateforme
+\graphicspath{{../figures/}{../../}}
+\definecolor{inptblue}{RGB}{0,114,188}
+\definecolor{embb}{HTML}{2A78D6}
+\definecolor{urllc}{HTML}{EB6834}
+\definecolor{mmtc}{HTML}{1BAF7A}
+\definecolor{muted}{HTML}{52514E}
+\titleformat{\chapter}[hang]{\Large\bfseries\color{inptblue}}{\thechapter.}{0.6em}{}
+\titlespacing*{\chapter}{0pt}{-10pt}{15pt}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small Projet SMARTICT -- Network slicing B5G et GNN}
+\fancyhead[R]{\small INPT -- Filière Smart ICT}
+\fancyfoot[C]{\thepage}
+\setlength{\headheight}{14pt}
+\captionsetup{font=small,labelfont=bf}
+\renewcommand{\arraystretch}{1.15}
+\setlength{\parskip}{0.4em}
+\newcommand{\gnn}{\textsc{gnn}}
+\newcommand{\R}{\mathbb{R}}
+
+\begin{document}
+
+\begin{titlepage}
+\centering
+\hfill\includegraphics[width=5cm]{INPT.png}\\[1.5cm]
+{\large Institut National des Postes et Télécommunications}\\[0.3cm]
+{\large Filière : Smart ICT}\\[2cm]
+{\Huge\bfseries\color{inptblue} Projet SMARTICT}\\[0.6cm]
+{\huge\bfseries AI-Based Dynamic Resource Allocation\\[0.2cm] for B5G Network Slicing}\\[0.8cm]
+{\Large Prédire la QoS des slices avec un réseau de neurones sur graphe\\ et tester sa robustesse aux changements brusques du réseau}\\[2.5cm]
+\begin{tabular}{rl}
+\textbf{Réalisé par :} & El Mehdi LAZAAR\\[4pt]
+ & EL KARFI Soufia\\[4pt]
+ & ABOUBAKAR Sidiki\\[4pt]
+ & Nizar BENSELLOUM\\[10pt]
+\textbf{Encadrant :} & M. Hassan EL GHAZI
+\end{tabular}
+\vfill
+\end{titlepage}
+
+\input{resume.tex}
+
+\tableofcontents
+\listoffigures
+\listoftables
+
+%=====================================================================
+\chapter*{Introduction générale}\addcontentsline{toc}{chapter}{Introduction générale}\markboth{Introduction générale}{}
+%=====================================================================
+Le \emph{network slicing} découpe une même infrastructure 5G/B5G en réseaux logiques, les \emph{slices}, adaptés chacun à un service. La slice \textbf{eMBB} privilégie le débit, la slice \textbf{URLLC} la latence et la fiabilité, la slice \textbf{mMTC} (ou mIoT) le nombre de terminaux. Ces slices partagent les mêmes antennes et les mêmes liens de transport. L'opérateur doit donc réserver à chacune une part des ressources suffisante pour son contrat de service (SLA), sans gaspiller la capacité. Quand le trafic change brusquement (pic de demande, nouvelle slice, réservation réduite), une allocation correcte peut devenir mauvaise.
+
+Le guide du projet pose la question suivante : \emph{peut-on apprendre à partir des données une stratégie ou une prédiction utile pour la gestion des ressources des slices, et cette solution reste-t-elle fiable lors de changements brusques du réseau ?} Il demande de construire et de justifier notre propre démarche, puis de répondre à la question finale : \emph{dans quelles conditions une approche \gnn{} apporte-t-elle une valeur ajoutée pour la gestion dynamique des slices B5G ?}
+
+Notre démarche :
+\begin{enumerate}[nosep]
+  \item situer le problème dans la littérature : network slicing, allocation des ressources, réseaux de neurones sur graphes et leurs applications aux réseaux (chapitre~\ref{chap:sota}) ;
+  \item explorer le dataset \emph{B5G Network Slicing} (Farreras et al., 2024) : 7\,127 simulations paquet, 1,58 million de flux (chapitre~\ref{chap:data}) ;
+  \item formuler le problème comme un \textbf{jumeau numérique} : prédire la QoS (délai, pertes) de chaque flux d'une slice à partir de la configuration du réseau et des réservations (chapitre~\ref{chap:pb}) ;
+  \item construire des références sans graphe : modèle naïf, Ridge, Gradient Boosting, MLP (chapitre~\ref{chap:base}) ;
+  \item définir les événements comme des écarts brusques au régime habituel du réseau (chapitre~\ref{chap:evt}) ;
+  \item représenter chaque simulation par un graphe hétérogène flux / files WFQ / liens et entraîner un \gnn{} de type RouteNet (chapitre~\ref{chap:gnn}) ;
+  \item comparer globalement, pendant les événements, par ablation et sous décalage de distribution (chapitre~\ref{chap:res}), puis discuter et conclure (chapitres~\ref{chap:disc} et~\ref{chap:concl}).
+\end{enumerate}
+Tout le code (extraction, features, modèles, évaluation) est dans le notebook du projet (\path{projet_B5G_slicing_GNN.ipynb}) et dans le dossier \texttt{code/}. L'annexe~\ref{chap:annexe} décrit comment reproduire les résultats ; un guide séparé (\path{Guide_du_code.pdf}) détaille le contenu de chaque fichier.
+
+\input{etat_de_l_art.tex}
+
+%=====================================================================
+\chapter{Le dataset B5G Network Slicing}\label{chap:data}
+%=====================================================================
+\section{Origine et structure}
+Le dataset est publié par Farreras, Paillissé, Fàbrega et Vilà (\emph{Data in Brief}, 2024, DOI 10.5281/zenodo.10610616)~\cite{farreras}. Il a été généré avec BNNetSimulator, un simulateur à événements discrets au niveau paquet construit sur OMNeT++~\cite{omnet}. Les topologies de transport sont réelles et proviennent de l'Internet Topology Zoo~\cite{topozoo}. Le simulateur y ajoute des antennes, des terminaux et des destinations pour trois types de slices, puis simule le réseau jusqu'au régime stationnaire. \textbf{Un échantillon est une simulation.}
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}lrX@{}}
+\toprule
+Fichier & Nombre & Contenu\\
+\midrule
+\texttt{graphs/graph\_n.txt} & 7\,985 & topologie GML : nœuds typés, ordonnancement, files, poids WFQ par port, capacités\\
+\texttt{routings/routing\_n.txt} & 7\,985 & port de sortie à utiliser pour chaque destination\\
+\texttt{slices/slices\_n.json} & 7\,985 & slices : type, $\delta$, flux (origine, antenne, destination, chemin, débit)\\
+\texttt{results\_*.tar.gz} & 79 & 100 simulations chacune : délais, gigue, pertes par flux ; trafic ; utilisation des ports et des files ; stabilité\\
+\bottomrule
+\end{tabularx}
+\caption{Fichiers du dataset (archive de 271~Mo, somme MD5 vérifiée).}
+\end{table}
+
+Chaque réseau simulé contient des nœuds \texttt{origin\_*} (terminaux d'une slice), des \textbf{antennes}, des nœuds de \textbf{transport} (\texttt{inner}) et des nœuds \texttt{destination\_*}. Un flux part d'un terminal, passe par une antenne, traverse le transport et atteint la destination de sa slice. Chaque port de sortie d'une antenne applique un ordonnancement \textbf{WFQ} (\emph{Weighted Fair Queuing}) avec \textbf{une file par slice} ; le poids de la file est la part de capacité réservée à la slice. C'est le levier de gestion des ressources étudié. Le transport est FIFO, avec une seule file de 32 paquets. La réservation suit $V_{res}=V_{min}+\delta(V_{max}-V_{min})$, avec $V_{min}$ et $V_{max}$ égaux à 90\,\% et 120\,\% du débit nominal de la slice et $\delta\in[0,1]$ tiré par slice~\cite{farreras}.
+
+\section{Extraction}
+Les fichiers de résultats sont des matrices $N\times N$ « à plat » de plusieurs mégaoctets par ligne. Nous avons écrit notre propre parseur (\texttt{code/extraction.py}) à partir de la documentation des formats. Le parseur fourni avec le dataset décode les fichiers JSON avec \texttt{jsonpickle}, qui peut exécuter du code arbitraire ; nous l'avons utilisé comme référence de format, sans l'exécuter. L'extraction, parallélisée sur 14 processus, produit quatre tables :
+\begin{itemize}[nosep]
+  \item \textbf{samples} : 7\,127 simulations (162 topologies, 16 à 765 nœuds) ;
+  \item \textbf{flows} : 1\,576\,669 flux avec leur slice, leur demande, leur file WFQ, leur chemin et leur QoS mesurée ;
+  \item \textbf{links} : 3\,538\,248 liens orientés avec leur capacité, leur utilisation et leurs pertes mesurées ;
+  \item \textbf{queues} : 263\,287 files WFQ actives aux ports des antennes.
+\end{itemize}
+773 simulations dont le statut n'est pas \texttt{OK} (régime stationnaire non atteint) sont écartées, comme le fait le parseur officiel.
+
+Trois pièges de format méritent d'être signalés : chacun fausse silencieusement toutes les features.
+\begin{enumerate}[nosep]
+  \item \textbf{Les chemins.} Le champ \texttt{path} des fichiers de slices ne correspond pas toujours au routage simulé : 42\,\% des flux, et 76\,\% des simulations comptent au moins un tel flux. Le trafic suit en réalité le fichier \texttt{routings/routing\_n.txt} (matrice nœud $\times$ destination $\to$ port de sortie), comme dans le parseur officiel. Nous reconstruisons chaque chemin à partir de ce routage. Avec les chemins des slices, un quart des files WFQ semblaient porter du trafic sans débit mesuré ; avec le routage, la charge offerte calculée et l'utilisation mesurée des liens concordent (corrélation 0,984 sur 1,68~million de liens).
+  \item \textbf{Les poids WFQ} sont définis \emph{par port de sortie} (« ; » sépare les ports, « , » les files), alors que l'affectation ToS $\to$ file est définie par nœud.
+  \item \textbf{L'identifiant de simulation} de \texttt{input\_files.txt} recommence à 0 dans chaque archive : l'identifiant global est le numéro du fichier \texttt{graph\_n.txt}.
+\end{enumerate}
+Nous n'avons détecté le premier piège qu'en confrontant nos features aux mesures de sortie. C'est la vérification la plus utile de tout le projet : un modèle entraîné sur ces chemins aurait appris sur des entrées fausses, sans aucun message d'erreur.
+
+\section{Dictionnaire des variables}
+\begin{table}[H]
+\centering\scriptsize
+\begin{tabularx}{\linewidth}{@{}>{\raggedright}p{2.6cm}>{\raggedright}p{3.6cm}>{\raggedright}p{1.7cm}>{\raggedright}p{1.5cm}X@{}}
+\toprule
+Variable & Signification & Type & Rôle & Justification\\
+\midrule
+\texttt{slice\_type} & type de slice du flux & catégorielle & demande & fixe débit, taille de paquet et SLA\\
+$\delta$ (\texttt{delta}) & paramètre de réservation de la slice & réel $[0,1]$ & ressource & levier de l'opérateur\\
+\texttt{bandwidth} & débit nominal du flux & bit/s & demande & 18 (eMBB), 3,5 (URLLC), 0,2 (mMTC) Mb/s\\
+\texttt{avg\_pkts\_lambda} & paquets par seconde (Poisson) & réel & demande & intensité réelle du trafic\\
+\texttt{pkt\_size} & taille moyenne réelle des paquets & bits & demande & moyenne des deux tailles de la loi binomiale\\
+\texttt{offered} & débit offert $=\lambda\times$ taille & bit/s & demande & 1,25 $\times$ nominal (eMBB, mMTC)\\
+\texttt{path} & chemin du flux & liste & contexte & ressources partagées\\
+\texttt{wfq\_weight} & poids WFQ de la file du flux & \% & ressource & part réservée à la slice\\
+\texttt{capacity} & capacité d'un lien & bit/s & ressource & 25 à 400 Mb/s\\
+\texttt{schedulingPolicy} & ordonnancement & catégorielle & ressource & WFQ aux antennes, FIFO ailleurs\\
+\texttt{queueSizes} & taille des files & paquets & ressource & constante (32) : non informative\\
+\texttt{n\_nodes} & taille du réseau & entier & contexte & généralisation\\
+\texttt{AvgDelay} & délai moyen par paquet du flux & s & QoS, cible & 10~µs à 1\,929~s : en log10\\
+\texttt{p10}…\texttt{p90}, \texttt{Jitter} & percentiles et variance du délai & réels & QoS & redondants avec le délai\\
+\texttt{PktsDrop/PktsGen} & taux de pertes du flux & $[0,1]$ & QoS, cible & seconde cible\\
+\texttt{utilization}, \texttt{losses} & mesures des ports et des files & $[0,1]$ & QoS (sortie) & interdites en entrée (fuite)\\
+\texttt{global\_*} & agrégats réseau mesurés & réels & QoS (sortie) & analyse seulement\\
+\texttt{sim\_time}, \texttt{stability} & durée et convergence & réels & qualité & simulations non stables écartées\\
+\bottomrule
+\end{tabularx}
+\caption{Dictionnaire des variables (livrable L1) : rôle potentiel et justification.}
+\label{tab:dico}
+\end{table}
+
+\section{Qualité des données}
+\begin{itemize}
+  \item \textbf{Valeurs manquantes} : aucune dans les tables de flux, de files et de simulations. Dans la table des liens, seule la taille de paquet mesurée est indéfinie (\texttt{-nan}) sur les 1,85~million de liens sans trafic ; cette variable n'est pas utilisée.
+  \item \textbf{Flux sans délai} : 9 flux ont un délai de $-1$, car tous leurs paquets sont perdus. Ils sont exclus de la cible délai.
+  \item \textbf{Doublons} : il n'y a aucun doublon exact, mais \textbf{93,4\,\% des flux ont un « jumeau »} dans la même simulation, avec la même slice, la même antenne, la même file WFQ et le même chemin après l'antenne. Ces flux ne diffèrent que par leur terminal, relié à l'antenne par un lien d'accès dédié. Leur QoS mesurée est quasi identique : l'écart-type intra-groupe de log10(délai) vaut 0,01 décade. Nous les regroupons en 263\,287 \textbf{classes de flux} de poids $w$ (6 flux en moyenne). Une classe correspond exactement à une file WFQ active : « une slice à une antenne ». Toutes les pertes et métriques sont pondérées par $w$, donc exactement équivalentes à un calcul par flux, pour un coût divisé par 6.
+  \item \textbf{Chemins incohérents} : voir ci-dessus ; corrigés en utilisant le routage simulé.
+  \item \textbf{Anomalie de taille de paquet} : le champ « taille moyenne » de la chaîne de trafic vaut 6\,000~bits pour eMBB, alors que les deux tailles possibles valent 12\,000 et 18\,000~bits. Le débit mesuré (22,5~Mb/s pour 18~Mb/s nominaux) confirme que la taille réelle est la moyenne des deux, soit 15\,000~bits. Nous utilisons la taille réelle.
+  \item \textbf{Sous-dimensionnement systématique} : la réservation est calculée sur le débit \emph{nominal} alors que le débit réel vaut 1,25 fois le nominal pour eMBB et mMTC. Résultat : 91\,\% des flux ont un débit offert supérieur à leur débit réservé. 51\,\% traversent au moins un lien de transport dont la charge offerte dépasse la capacité. Le dataset couvre donc surtout des régimes saturés. Ce n'est pas une erreur à corriger, mais une propriété à garder en tête.
+  \item \textbf{Réservations hors chemin} : 8,1\,\% des flux traversent un port d'antenne où leur slice n'a \emph{aucune} réservation (poids WFQ résiduel de 0,001\,\%). Les réservations semblent avoir été placées selon le champ \texttt{path}, alors que le trafic suit le routage. Ces files sont quasi affamées : pertes médianes de 63\,\% et délais jusqu'à 1\,929~s. Nous conservons cet effet réel ; il produit la majorité des « surcharges » du chapitre~\ref{chap:evt}.
+  \item \textbf{Valeurs extrêmes} : les délais atteignent 1\,929~s pour des files WFQ quasi affamées (poids de l'ordre de 0,05\,\%). La cible est donc prise en log10. Quelques poids WFQ légèrement négatifs (au plus $-0{,}03$\,\%, des résidus d'arrondi) sont ramenés à 0.
+\end{itemize}
+
+\section{Distributions et relations}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{fig_targets.png}
+\caption{Distribution du délai (log10) et du taux de pertes par type de slice (pondérée par flux).}
+\label{fig:targets}
+\end{figure}
+
+Le délai couvre huit ordres de grandeur et sa distribution est \textbf{bimodale} (figure~\ref{fig:targets}). Un flux non congestionné ne subit que des temps de transmission, de 10~µs à 0,1~ms. Un flux congestionné attend derrière des files pleines, de la milliseconde à la seconde. Les délais médians valent 0,5~ms (URLLC), 1,6~ms (mMTC) et 13,8~ms (eMBB). Le taux de pertes médian atteint 7\,\% (URLLC), 19\,\% (mMTC) et 22\,\% (eMBB). On observe un pic à 0 (flux non congestionnés) et un pic à 1 (files affamées).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{fig_inputs.png}
+\caption{Entrées principales : $\delta$ (uniforme), poids WFQ par slice (échelle log), charge effective des files WFQ, taille des réseaux.}
+\label{fig:inputs}
+\end{figure}
+
+Pour relier entrées et QoS, nous définissons pour chaque flux la \textbf{charge de son goulot}
+\begin{equation}
+b=\max\Big(\rho^{\text{file}}_{\text{eff}},\ \max_{\ell\in\text{chemin}}\rho_\ell\Big),\qquad
+\rho_\ell=\frac{\sum_{f\ni\ell}\text{débit offert}_f}{C_\ell},\qquad
+\rho^{\text{file}}_{\text{eff}}=\frac{\text{débit offert de la file}}{\frac{w_q}{\sum_{q'\text{ actives}}w_{q'}}\,C_{\text{port}}}.
+\end{equation}
+La part effective d'une file WFQ redistribue la capacité des files vides aux files actives, au prorata de leurs poids : c'est la propriété de conservation du GPS dont WFQ est la version par paquets~\cite{gps,wfq} (section~\ref{sec:sota-alloc}). $b$ ne dépend que des \emph{entrées} de la simulation : topologie, routage, demandes et poids.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\linewidth]{fig_knee.png}
+\caption{QoS médiane et interquartile en fonction de la charge du goulot $b$ : un coude net en $b=1$.}
+\label{fig:knee}
+\end{figure}
+
+La figure~\ref{fig:knee} montre un \textbf{changement de régime en $b\approx1$}. En dessous, il n'y a pas de pertes et le délai reste de l'ordre de 10 à 100~µs. Au-dessus, les pertes croissent rapidement et le délai gagne deux décades. Comme $b$ couvre plus de dix ordres de grandeur (files affamées), l'axe est logarithmique. Les meilleures features isolées sont le délai de file pleine pour le délai ($|\rho_{\text{Spearman}}|=0{,}67$) et la charge effective de la file WFQ pour les pertes (0,73) (figure~\ref{fig:corr}). Aucune ne suffit pourtant : la QoS d'un flux dépend aussi des \emph{autres} flux qui partagent ses ressources, et des pertes qu'ils subissent en amont, qui allègent les liens en aval. C'est l'argument en faveur d'une représentation relationnelle, que l'ablation du chapitre~\ref{chap:res} met à l'épreuve.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\linewidth]{fig_corr.png}
+\caption{Corrélation de Spearman entre les 24 features et les deux cibles (300\,000 flux tirés au hasard).}
+\label{fig:corr}
+\end{figure}
+
+\paragraph{Variables liées à la demande, aux ressources et à la QoS.} Demande : type de slice, débit offert, taille de paquet, nombre de flux. Ressources : $\delta$, poids et débit réservé WFQ, capacités, structure des files. QoS : délai, percentiles, gigue, pertes, et toutes les mesures d'utilisation. Ces dernières sont des sorties et ne sont jamais utilisées comme entrées.
+
+%=====================================================================
+\chapter{Formulation du problème et protocole}\label{chap:pb}
+%=====================================================================
+\section{Cible}
+Pour chaque flux d'une slice, on prédit sa QoS en régime établi à partir de la configuration du réseau : topologie, routage, demandes de toutes les slices et réservations WFQ.
+\begin{itemize}[nosep]
+  \item $y_1=\log_{10}(\text{délai moyen})$, cible principale. Une MAE de 0,3 décade correspond à une erreur d'un facteur 2 environ. Le passage au logarithme est justifié de deux façons. D'une part, le délai couvre huit ordres de grandeur : en échelle linéaire, quelques files affamées (délais de plusieurs secondes) écraseraient toute la fonction de perte. D'autre part, l'erreur absolue sur le log est la moyenne du log du rapport prédit/réel, mesure recommandée pour les grandeurs strictement positives à forte dynamique, car elle pénalise symétriquement la sur- et la sous-estimation~\cite{tofallis}.
+  \item $y_2=$ taux de pertes $\in[0,1]$, cible secondaire.
+\end{itemize}
+
+\section{Pourquoi cette cible est un problème de gestion des slices}
+L'opérateur décide des réservations ($\delta$, donc des poids WFQ) et de l'admission des slices. Avant de déployer une configuration, il doit savoir si chaque slice respectera son SLA (tableau~\ref{tab:sla_def}). Une simulation paquet coûte entre quelques minutes et plusieurs heures : la colonne \texttt{sim\_time} atteint 15~h. Un prédicteur de QoS par flux répond en quelques millisecondes. Il sert de \textbf{jumeau numérique} pour (i) comparer des allocations candidates (« que se passe-t-il si je baisse $\delta$ de l'eMBB ? »), (ii) contrôler l'admission d'une nouvelle slice et (iii) détecter les slices qui vont violer leur SLA. C'est l'étape d'évaluation d'une boucle d'allocation dynamique, que l'optimisation des poids utilise ensuite.
+
+Pourquoi pas une autre cible ? Prédire directement « la bonne allocation » est impossible : le dataset ne contient pas d'allocation optimale étiquetée, seulement des allocations aléatoires et leurs conséquences. Prédire l'utilisation des liens est moins utile : un SLA porte sur le délai et les pertes d'une slice, pas sur un lien.
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Slice & SLA délai & SLA pertes & Flux violant le SLA délai\\
+\midrule
+eMBB & 10~ms & 10\,\% & 59\,\%\\
+URLLC & 0,5~ms & 0,001\,\% & 50\,\%\\
+mMTC (mIoT) & 10~s & 1\,\% & 1\,\%\\
+\bottomrule
+\end{tabular}
+\caption{Exigences des slices (Table~1 de~\cite{farreras}) et part des flux du dataset qui violent le SLA de délai.}
+\label{tab:sla_def}
+\end{table}
+
+\section{Hypothèses}
+\begin{description}[nosep]
+  \item[H1] La QoS d'un flux dépend d'interactions entre flux : ressources partagées et pertes en amont. Un \gnn{} qui modélise ces interactions doit faire mieux que des modèles à features par flux.
+  \item[H2] Les erreurs augmentent pendant les événements, quand la charge s'écarte du régime habituel du réseau.
+  \item[H3] Les informations de réservation et de charge sont nécessaires : les retirer dégrade la prédiction.
+\end{description}
+
+\section{Protocole}
+\begin{itemize}
+  \item \textbf{Unité et métriques} : la classe de flux, de poids $w$. MAE et MSE sont pondérées par $w$ (donc par flux) et calculées sur les deux cibles.
+  \item \textbf{Découpage par topologie} : chaque topologie est simulée environ 44 fois. Mélanger ses simulations entre entraînement et test permettrait de mémoriser la topologie. Les ensembles contiennent donc des topologies \textbf{disjointes} (tableau~\ref{tab:splits}). C'est la validation par blocs recommandée pour les données structurées en groupes : un découpage aléatoire des échantillons d'un même groupe surestime systématiquement la performance~\cite{roberts}.
+  \item \textbf{Absence de fuite} : seules les entrées de la simulation servent de features. Normalisations et hyperparamètres sont fixés sur l'entraînement et la validation ; le test n'est évalué qu'une fois. Les mesures d'utilisation ou de pertes des liens seraient des prédicteurs très efficaces, mais elles ne sont connues qu'\emph{après} la simulation : les utiliser serait une fuite au sens de Kaufman et al.~\cite{kaufman}, et le modèle serait inutilisable pour évaluer une configuration nouvelle.
+  \item \textbf{Décalage de distribution} : un second découpage (\texttt{shift}) entraîne sur les petits et moyens réseaux et teste sur les plus grands (quart supérieur des tailles de topologie, à partir de 212 nœuds).
+\end{itemize}
+\begin{table}[H]
+\centering\small
+\adjustbox{max width=\linewidth}{\input{../results/tables/tab_splits.tex}}
+\caption{Découpages train / validation / test (topologies disjointes).}
+\label{tab:splits}
+\end{table}
+
+%=====================================================================
+\chapter{Baselines et modèles sans graphe}\label{chap:base}
+%=====================================================================
+Les modèles sans graphe utilisent 24 features par flux calculées à partir des entrées, en six familles :
+\begin{itemize}[nosep]
+  \item \emph{slice} : type, log débit offert, log taille de paquet ;
+  \item \emph{réservation} : $\delta$, poids WFQ, log débit réservé, $\rho^{\text{file}}$ nominal et effectif ;
+  \item \emph{port d'antenne} : capacité, charge offerte, nombre de files, nombre de flux de la file ;
+  \item \emph{chemin} : nombre de sauts, charge maximale et moyenne des liens, nombre de liens surchargés, capacité minimale ;
+  \item \emph{réseau} : nombre de nœuds, de flux et d'antennes ;
+  \item \emph{physique} : deux délais issus d'un modèle fluide, décrits ci-dessous.
+\end{itemize}
+
+\paragraph{Features physiques.} Tous les flux servis par une même file WFQ d'antenne suivent le même chemin et ont la même QoS. Connaître la file explique donc toute la variance des cibles, alors que connaître seulement la simulation et le type de slice n'en explique que 49\,\% (délai) et 56\,\% (pertes). L'unité réellement prédite est « une slice à une antenne », c'est-à-dire le niveau où s'applique la réservation. Quand une file de $B=32$ paquets est saturée, un paquet attend environ le temps nécessaire pour la vider. Nous en tirons deux features :
+\begin{align}
+\texttt{log\_qdelay\_full}&=\log_{10}\frac{B\,L_{\text{slice}}}{r_{\text{eff}}},\qquad r_{\text{eff}}=\frac{w_q}{\sum_{\text{actives}}w}\,C_{\text{port}},\\
+\texttt{log\_path\_delay\_full}&=\log_{10}\!\!\sum_{\ell\in\text{chemin},\ \rho_\ell>1}\!\!\frac{B\,\bar L_\ell}{C_\ell},
+\end{align}
+où $\bar L_\ell$ est la taille moyenne des paquets offerts au lien $\ell$. Elles injectent une connaissance du domaine (files pleines, partage WFQ) que les modèles n'ont pas à réapprendre.
+
+Les features de chemin et de physique sont déjà des \emph{résumés du graphe construits à la main}, ce qui rend la comparaison avec le \gnn{} exigeante.
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+Modèle & Description\\
+\midrule
+Naïf & médiane pondérée de chaque cible par type de slice (apprise sur l'entraînement) : la référence minimale\\
+Ridge & régression linéaire régularisée~\cite{ridge} sur les features standardisées ; $\alpha$ choisi sur la validation parmi $\{0{,}01;\dots;100\}$\\
+Gradient Boosting & boosting de gradient~\cite{friedman} sur histogrammes (\texttt{HistGradientBoostingRegressor}, même principe que LightGBM~\cite{lightgbm}), 400 arbres ; taux d'apprentissage, nombre de feuilles et taille minimale des feuilles choisis sur la validation (grille de 8 configurations)\\
+MLP & 2 couches cachées de 128 neurones, Adam~\cite{adam}, arrêt précoce sur la validation~\cite{prechelt}. C'est un \gnn{} sans graphe : il voit les mêmes features résumées\\
+\bottomrule
+\end{tabularx}
+\caption{Modèles de référence (un modèle par cible pour Ridge et le Gradient Boosting, un modèle multi-sortie pour le MLP).}
+\end{table}
+
+Leurs résultats sont présentés avec ceux du \gnn{} au chapitre~\ref{chap:res}.
+
+%=====================================================================
+\chapter{Définition des événements}\label{chap:evt}
+%=====================================================================
+\section{Contrainte du dataset}
+Les simulations sont des régimes stationnaires \textbf{indépendants} : il n'y a pas d'axe temporel, donc pas d'« avant » ni d'« après » une rupture. En revanche, chaque topologie est simulée environ 44 fois avec des slices, des placements d'antennes et des réservations différents. Ces simulations décrivent le \textbf{régime habituel} de ce réseau. Un changement brusque (pic de trafic, ajout d'une slice, réduction de $\delta$) place un flux dans un état éloigné de ce régime habituel. C'est cet écart que nous mesurons.
+
+\section{Mesure de changement et règle}
+La variable d'état est la charge du goulot $b$ (équation du chapitre~\ref{chap:data}). Ce choix a deux raisons : elle pilote le changement de régime de la QoS (figure~\ref{fig:knee}), et elle ne dépend que des entrées, donc l'opérateur peut l'observer avant toute mesure de QoS. Comme $b$ couvre plus de dix ordres de grandeur, l'écart est mesuré sur $\log_{10}b$, c'est-à-dire de façon \textbf{multiplicative} (« deux fois plus chargé que d'habitude »). Pour chaque flux, l'écart robuste au régime habituel vaut
+\begin{equation}
+z=\frac{\log_{10}b-\text{médiane}_{\tau,s}(\log_{10}b)}{1{,}4826\cdot\operatorname{MAD}_{\tau,s}(\log_{10}b)},
+\end{equation}
+où la médiane et l'écart absolu médian (MAD) sont calculés sur tous les flux de la même topologie $\tau$ et du même type de slice $s$. Le facteur 1,4826 rend le MAD comparable à un écart-type~\cite{mad} ; un plancher de 0,02 décade évite les divisions par une dispersion nulle.
+
+\textbf{Règle} : le flux est un événement si $|z|\ge3$.
+\begin{itemize}[nosep]
+  \item \textbf{surcharge} ($z\ge3$) : le goulot est beaucoup plus chargé que d'habitude, typiquement une slice dont la réservation est devenue très inférieure à sa demande ;
+  \item \textbf{délestage} ($z\le-3$) : le goulot est beaucoup moins chargé que d'habitude, au point de repasser sous la saturation.
+\end{itemize}
+
+\paragraph{Justification du seuil.}
+\begin{enumerate}[nosep]
+  \item $|z|\ge3$ est l'\textbf{identificateur de Hampel}~\cite{hampel}, règle robuste standard de détection de valeurs aberrantes : environ 0,3\,\% des valeurs pour une loi normale. Leys et al.~\cite{leys} recommandent explicitement la médiane et le MAD plutôt que la moyenne et l'écart-type, et un seuil de 3 comme choix « très conservateur ». Médiane et MAD résistent aux valeurs extrêmes, contrairement à la moyenne et à l'écart-type. Les queues de $\log_{10}b$ sont lourdes : avec $|z|\ge2$, 19\,\% des flux seraient des « événements », ce qui n'est plus un changement exceptionnel.
+  \item Le seuil isole 13,6\,\% des flux (10,6\,\% de surcharges, 2,9\,\% de délestages), assez pour une évaluation stable (29\,851 flux en test).
+  \item Les événements coïncident avec un changement de régime de la QoS (tableau~\ref{tab:events}) : 100\,\% des flux en surcharge ont $b>1$ (pertes médianes de 85\,\%), et 99,3\,\% des flux en délestage ont $b<1$ (pertes nulles, délai médian de 25~µs).
+\end{enumerate}
+Nous avons écarté une définition au niveau de la simulation (écart de la charge totale du réseau), car la QoS se joue au niveau des files d'antenne : deux flux d'une même simulation peuvent être l'un saturé, l'autre non. Nous avons aussi écarté une définition à partir de la QoS mesurée : elle évaluerait les modèles sur un sous-ensemble choisi d'après la cible elle-même. Le masque sert \textbf{uniquement à l'évaluation} et n'est jamais une feature.
+
+\begin{table}[H]
+\centering\small
+\adjustbox{max width=\linewidth}{\input{../results/tables/tab_events.tex}}
+\caption{Répartition des flux par type d'événement et QoS médiane associée.}
+\label{tab:events}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{fig_events_z.png}
+\caption{Distribution de $z$ avec les seuils $\pm3$, et QoS médiane en fonction de $z$.}
+\label{fig:events_z}
+\end{figure}
+
+\section{Vérification visuelle}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{fig_events_topo.png}
+\caption{Vérification sur une topologie. À gauche : charge du goulot de chaque classe de flux, simulation par simulation. Au centre et à droite : QoS mesurée des flux selon leur étiquette.}
+\label{fig:events_topo}
+\end{figure}
+Sur une topologie simulée de nombreuses fois (figure~\ref{fig:events_topo}), les flux étiquetés sortent bien de la bande habituelle de $b$. Leur QoS mesurée diffère nettement : les flux en surcharge perdent plus de paquets et attendent plus longtemps. Les flux en délestage n'ont presque pas de pertes et un délai bien plus court. Le masque, construit sans regarder la QoS, isole donc des changements de régime réels.
+
+%=====================================================================
+\chapter{Représentation graphe et GNN}\label{chap:gnn}
+%=====================================================================
+\section{Le graphe}
+Chaque simulation devient un \textbf{graphe hétérogène} à trois types de nœuds (tableau~\ref{tab:graph}).
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}lrX@{}}
+\toprule
+Nœuds & Nombre moyen & Attributs\\
+\midrule
+flux (classe de flux) & 37 & type de slice (one-hot), log débit offert, log taille de paquet, $\delta$, nombre de sauts\\
+file WFQ (slice $\times$ port d'antenne) & 37 & poids WFQ, log débit réservé, $\rho^{\text{file}}$ nominal et effectif, log nombre de flux, log délai de file pleine\\
+lien (traversé par un flux) & 15 & log capacité, charge offerte $\rho$, log nombre de flux, port d'antenne (0/1), log nombre de files, WFQ (0/1), log délai de file pleine\\
+\midrule
+\multicolumn{3}{@{}l}{Arêtes : flux $\to$ liens \textbf{ordonnées} (le chemin) ; flux $\to$ sa file WFQ ; file $\to$ le port (lien) de son antenne}\\
+\bottomrule
+\end{tabularx}
+\caption{Graphe d'une simulation (moyennes sur les 7\,127 graphes ; 161 arêtes flux--lien en moyenne, chemins de 2 à 32 liens).}
+\label{tab:graph}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.72\linewidth]{fig_graph.png}
+\caption{Graphe hétérogène d'une petite simulation : classes de flux (couleur = slice), files WFQ et liens.}
+\label{fig:graph}
+\end{figure}
+
+\paragraph{Pourquoi des nœuds « flux » et « lien » plutôt que la topologie physique ?} On prédit la QoS d'un \emph{flux}. Elle dépend des ressources qu'il traverse et des autres flux qui les partagent. Le graphe physique (routeurs et câbles) ne contient pas l'information de routage. Le graphe biparti flux--liens, idée de RouteNet~\cite{routenet}, encode directement « qui partage quoi ».
+
+\paragraph{Pourquoi des nœuds « file » ?} C'est à la file WFQ que s'applique la \textbf{réservation de slice}. Plusieurs slices partagent le port d'une antenne selon leurs poids : la file porte la part réservée, le lien la capacité totale.
+
+\paragraph{Homogène ou hétérogène ?} Hétérogène : trois types de nœuds aux attributs différents, chacun avec ses propres fonctions de message et de mise à jour, comme dans les \gnn{} relationnels et hétérogènes~\cite{rgcn,han}. Partager les mêmes poids entre un flux et un lien n'aurait pas de sens physique.
+
+\paragraph{Pourquoi plus informatif qu'un vecteur ?} Le vecteur de features résume le chemin par quelques statistiques (charge maximale et moyenne). Il ignore \emph{qui} partage chaque lien et \emph{combien de trafic arrive réellement} après les pertes en amont. Or le délai d'un flux dépend de l'état des autres flux, qui dépend lui-même du sien. C'est un problème de point fixe, que le passage de messages approche par itérations.
+
+\section{Architecture}
+Le modèle \texttt{SliceGNN} (\texttt{code/gnn.py}) s'inspire de RouteNet~\cite{routenet,routenetf}. Les états cachés ont la dimension $d=64$ ; trois MLP encodent les attributs des flux ($h_f$), des files ($h_q$) et des liens ($h_\ell$). On répète ensuite $T=4$ fois :
+\begin{enumerate}
+  \item \textbf{Flux $\leftarrow$ liens et file.} Comme dans RouteNet et les Gated GNN~\cite{routenet,ggnn}, chaque flux parcourt son chemin $(\ell_0,\dots,\ell_{K-1})$ avec un GRU initialisé par $h_f$ :
+  \begin{equation}
+  o_{f,k},\ s_{f,k}=\mathrm{GRU}\big([h_{\ell_k}\,;\,h_{q(f)}\,\mathbf{1}_{k=0}],\ s_{f,k-1}\big),\qquad s_{f,-1}=h_f,\qquad h_f\leftarrow s_{f,K-1}.
+  \end{equation}
+  Le premier lien $\ell_0$ est le port WFQ de l'antenne, où le flux lit aussi l'état de sa file. La sortie $o_{f,k}$ décrit le flux \emph{tel qu'il arrive} sur le lien $\ell_k$.
+  \item \textbf{Liens $\leftarrow$ flux.} $m_\ell=\sum_{(f,k):\ell_k=\ell}w_f\,o_{f,k}\big/\sum w_f$ (moyenne pondérée par la multiplicité), puis $h_\ell\leftarrow\mathrm{GRUCell}(m_\ell,h_\ell)$.
+  \item \textbf{Files $\leftarrow$ flux.} La même agrégation porte sur les flux servis par la file, à leur premier saut, puis $h_q\leftarrow\mathrm{GRUCell}(m_q,h_q)$.
+\end{enumerate}
+En sortie, un MLP ($64\to64\to32\to2$) appliqué à $h_f$ donne les deux cibles standardisées. La perte est la MSE pondérée par $w$, somme des deux cibles.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  box/.style={draw,rounded corners=2pt,minimum height=8mm,align=center,font=\small},
+  fl/.style={box,fill=embb!15}, qu/.style={box,fill=urllc!18}, li/.style={box,fill=black!8},
+  >=Stealth, node distance=6mm]
+\node[fl] (xf) {attributs\\flux $x_f$};
+\node[qu, below=of xf] (xq) {attributs\\files $x_q$};
+\node[li, below=of xq] (xl) {attributs\\liens $x_\ell$};
+\node[fl, right=12mm of xf] (hf) {$h_f$};
+\node[qu, right=12mm of xq] (hq) {$h_q$};
+\node[li, right=12mm of xl] (hl) {$h_\ell$};
+\draw[->] (xf) -- node[above,font=\scriptsize]{MLP} (hf);
+\draw[->] (xq) -- node[above,font=\scriptsize]{MLP} (hq);
+\draw[->] (xl) -- node[above,font=\scriptsize]{MLP} (hl);
+\node[box, right=18mm of hq, text width=4.6cm, inner sep=6pt, align=left, fill=white, font=\scriptsize] (mp)
+  {{\small\textbf{passage de messages} $\times\,T=4$}\par\smallskip\raggedright
+   1. GRU le long du chemin (le flux lit liens et file)\\
+   2. liens $\leftarrow$ moyenne pondérée ($w$) des flux\\
+   3. files $\leftarrow$ moyenne pondérée ($w$) des flux};
+\draw[->] (hf) -- (mp.west |- hf);
+\draw[->] (hq) -- (mp.west);
+\draw[->] (hl) -- (mp.west |- hl);
+\node[fl, right=14mm of mp] (out) {MLP\\$\to$ [log10 délai,\\pertes]};
+\draw[->] (mp) -- node[above,font=\scriptsize]{$h_f$} (out);
+\end{tikzpicture}
+\caption{Architecture de SliceGNN.}
+\label{fig:archi}
+\end{figure}
+
+\paragraph{Choix de l'architecture.} Nous ne l'avons pas choisie pour sa popularité, mais à partir des propriétés du graphe :
+\begin{itemize}[nosep]
+  \item le graphe est \textbf{hétérogène} et biparti, alors qu'un GCN homogène suppose des voisins de même nature ;
+  \item l'information circule \textbf{le long de chemins ordonnés} : un flux qui perd des paquets en amont charge moins les liens en aval. Le GRU sur le chemin modélise cet ordre ; l'agrégation par ensemble de GraphSAGE ou de GAT l'ignore ;
+  \item les dépendances sont \textbf{circulaires} (flux $\leftrightarrow$ liens) et longues : des itérations avec mémoire approchent ce point fixe mieux que quelques couches empilées ;
+  \item le \textbf{nombre de voisins varie} fortement (de 1 à plusieurs centaines de flux par lien) : une moyenne pondérée reste stable, là où une somme exploserait. La moyenne perd l'information de cardinalité~\cite{gin} ; nous la réinjectons sous forme d'attribut (log du nombre de flux du lien et de la file).
+\end{itemize}
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+Hyperparamètre & Valeur\\
+\midrule
+dimension cachée $d$ & 64\\
+itérations $T$ & 4\\
+optimiseur & Adam, taux $10^{-3}$, décroissance de poids $10^{-5}$\\
+lot & 16 simulations\\
+époques max / patience & 40 / 6, restauration des meilleurs poids\\
+matériel & GPU RTX 4070 portable : environ 20~s par époque, 16~min par entraînement\\
+réduction du taux & $\times0{,}5$ après 2 époques sans gain\\
+écrêtage du gradient & norme 1\\
+paramètres & 107\,426\\
+\bottomrule
+\end{tabular}
+\caption{Hyperparamètres du GNN.}
+\end{table}
+
+\paragraph{Contrôle du surapprentissage.} Validation sur des topologies jamais vues, arrêt précoce avec restauration des meilleurs poids~\cite{prechelt}, réduction du taux d'apprentissage sur plateau, décroissance de poids et écrêtage du gradient. Le modèle compte 107\,k paramètres pour 183\,323 classes de flux en entraînement.
+
+\input{resultats.tex}
+
+\appendix
+%=====================================================================
+\chapter{Reproduction}\label{chap:annexe}
+%=====================================================================
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+Fichier & Rôle\\
+\midrule
+\texttt{projet\_B5G\_slicing\_GNN.ipynb} & notebook complet : EDA, protocole, modèles, événements, GNN, comparaison\\
+\texttt{code/extraction.py} & lecture des archives brutes $\to$ 4 tables Parquet (environ 6~min sur 14 processus)\\
+\texttt{code/features.py} & 24 features par flux à partir des entrées ; regroupement en classes de flux\\
+\texttt{code/preparation.py} & classes de flux, masque d'événements, graphes (environ 3~min)\\
+\texttt{code/splits.py} & découpages par topologie (\texttt{topo}, \texttt{shift})\\
+\texttt{code/run\_tabular.py} & modèle naïf, Ridge, Gradient Boosting, MLP\\
+\texttt{code/gnn.py}, \texttt{code/run\_gnn.py} & SliceGNN et son entraînement (CPU ou GPU)\\
+\texttt{code/evaluation.py} & MAE et MSE pondérées par flux\\
+\path{Guide_du_code.pdf} & guide détaillé de chaque fichier du code et aide-mémoire « où est… ? »\\
+\texttt{presentation/} & présentation, script de génération et discours minuté\\
+\bottomrule
+\end{tabularx}
+\caption{Organisation du code.}
+\end{table}
+Ordre d'exécution :
+\begin{enumerate}[nosep]
+  \item télécharger le dataset Zenodo dans \texttt{data/raw/} et le décompresser ;
+  \item lancer \texttt{bash code/run\_all.sh} (extraction, préparation, tous les entraînements) ;
+  \item exécuter le notebook, qui relit les résultats en cache dans \texttt{results/} et relance les entraînements manquants.
+\end{enumerate}
+
+\begin{thebibliography}{99}\addcontentsline{toc}{chapter}{\bibname}\small
+\bibitem{farreras} M.~Farreras, J.~Paillissé, L.~Fàbrega, P.~Vilà. Generation of a network slicing dataset: The foundations for AI-based B5G resource management. \emph{Data in Brief}, 55, 110738, 2024. Données : \url{https://doi.org/10.5281/zenodo.10610616}.
+\bibitem{routenet} K.~Rusek, J.~Suárez-Varela, P.~Almasan, P.~Barlet-Ros, A.~Cabellos-Aparicio. RouteNet: Leveraging Graph Neural Networks for network modeling and optimization in SDN. \emph{IEEE JSAC}, 38(10), 2020.
+\bibitem{routenetf} M.~Ferriol-Galmés, J.~Paillissé, J.~Suárez-Varela, K.~Rusek, S.~Xiao, X.~Shi, X.~Cheng, P.~Barlet-Ros, A.~Cabellos-Aparicio. RouteNet-Fermi: Network Modeling with Graph Neural Networks. \emph{IEEE/ACM Transactions on Networking}, 2023.
+\bibitem{gcn} T.~N.~Kipf, M.~Welling. Semi-Supervised Classification with Graph Convolutional Networks. \emph{ICLR}, 2017.
+\bibitem{sage} W.~Hamilton, R.~Ying, J.~Leskovec. Inductive Representation Learning on Large Graphs. \emph{NeurIPS}, 2017.
+\bibitem{gat} P.~Veličković, G.~Cucurull, A.~Casanova, A.~Romero, P.~Liò, Y.~Bengio. Graph Attention Networks. \emph{ICLR}, 2018.
+\bibitem{gru} K.~Cho et al. Learning Phrase Representations using RNN Encoder--Decoder for Statistical Machine Translation. \emph{EMNLP}, 2014.
+\bibitem{wfq} A.~Demers, S.~Keshav, S.~Shenker. Analysis and simulation of a fair queueing algorithm. \emph{ACM SIGCOMM}, 1989.
+\bibitem{itu2083} ITU-R. Recommendation M.2083-0 : IMT Vision -- Framework and overall objectives of the future development of IMT for 2020 and beyond. 2015.
+\bibitem{tr38913} 3GPP. TR 38.913 : Study on scenarios and requirements for next generation access technologies.
+\bibitem{ts23501} 3GPP. TS 23.501 : System architecture for the 5G System (5GS).
+\bibitem{ts28530} 3GPP. TS 28.530 : Management and orchestration ; Concepts, use cases and requirements.
+\bibitem{ngmn} NGMN Alliance. 5G White Paper. 2015.
+\bibitem{foukas} X.~Foukas, G.~Patounas, A.~Elmokashfi, M.~K.~Marina. Network Slicing in 5G: Survey and Challenges. \emph{IEEE Communications Magazine}, 55(5), 2017.
+\bibitem{afolabi} I.~Afolabi, T.~Taleb, K.~Samdanis, A.~Ksentini, H.~Flinck. Network Slicing and Softwarization: A Survey on Principles, Enabling Technologies, and Solutions. \emph{IEEE Communications Surveys \& Tutorials}, 20(3), 2018.
+\bibitem{rost} P.~Rost et al. Network Slicing to Enable Scalability and Flexibility in 5G Mobile Networks. \emph{IEEE Communications Magazine}, 55(5), 2017.
+\bibitem{gps} A.~K.~Parekh, R.~G.~Gallager. A generalized processor sharing approach to flow control in integrated services networks: the single-node case. \emph{IEEE/ACM Transactions on Networking}, 1(3), 1993.
+\bibitem{kleinrock} L.~Kleinrock. \emph{Queueing Systems, Volume 1: Theory}. Wiley, 1975.
+\bibitem{omnet} A.~Varga, R.~Hornig. An overview of the OMNeT++ simulation environment. \emph{SIMUTools}, 2008.
+\bibitem{topozoo} S.~Knight, H.~X.~Nguyen, N.~Falkner, R.~Bowden, M.~Roughan. The Internet Topology Zoo. \emph{IEEE JSAC}, 29(9), 2011.
+\bibitem{deepcog} D.~Bega, M.~Gramaglia, M.~Fiore, A.~Banchs, X.~Costa-Pérez. DeepCog: Cognitive Network Management in Sliced 5G Networks with Deep Learning. \emph{IEEE INFOCOM}, 2019.
+\bibitem{digitaltwin} P.~Almasan et al. Network Digital Twin: Context, Enabling Technologies, and Opportunities. \emph{IEEE Communications Magazine}, 60(11), 2022.
+\bibitem{battaglia} P.~W.~Battaglia et al. Relational inductive biases, deep learning, and graph networks. \emph{arXiv:1806.01261}, 2018.
+\bibitem{mpnn} J.~Gilmer, S.~S.~Schoenholz, P.~F.~Riley, O.~Vinyals, G.~E.~Dahl. Neural Message Passing for Quantum Chemistry. \emph{ICML}, 2017.
+\bibitem{gatv2} S.~Brody, U.~Alon, E.~Yahav. How Attentive are Graph Attention Networks? \emph{ICLR}, 2022.
+\bibitem{gin} K.~Xu, W.~Hu, J.~Leskovec, S.~Jegelka. How Powerful are Graph Neural Networks? \emph{ICLR}, 2019.
+\bibitem{ggnn} Y.~Li, D.~Tarlow, M.~Brockschmidt, R.~Zemel. Gated Graph Sequence Neural Networks. \emph{ICLR}, 2016.
+\bibitem{rgcn} M.~Schlichtkrull, T.~N.~Kipf, P.~Bloem, R.~van den Berg, I.~Titov, M.~Welling. Modeling Relational Data with Graph Convolutional Networks. \emph{ESWC}, 2018.
+\bibitem{han} X.~Wang et al. Heterogeneous Graph Attention Network. \emph{The Web Conference (WWW)}, 2019.
+\bibitem{oversmoothing} Q.~Li, Z.~Han, X.-M.~Wu. Deeper Insights into Graph Convolutional Networks for Semi-Supervised Learning. \emph{AAAI}, 2018.
+\bibitem{oversquashing} U.~Alon, E.~Yahav. On the Bottleneck of Graph Neural Networks and its Practical Implications. \emph{ICLR}, 2021.
+\bibitem{suarez} J.~Suárez-Varela et al. Graph Neural Networks for Communication Networks: Context, Use Cases and Opportunities. \emph{IEEE Network}, 37(3), 2023.
+\bibitem{jiang} W.~Jiang. Graph-based deep learning for communication networks: A survey. \emph{Computer Communications}, 185, 2022.
+\bibitem{eisen} M.~Eisen, A.~Ribeiro. Optimal Wireless Resource Allocation With Random Edge Graph Neural Networks. \emph{IEEE Transactions on Signal Processing}, 68, 2020.
+\bibitem{shen} Y.~Shen, Y.~Shi, J.~Zhang, K.~B.~Letaief. Graph Neural Networks for Scalable Radio Resource Management: Architecture Design and Theoretical Analysis. \emph{IEEE JSAC}, 39(1), 2021.
+\bibitem{tofallis} C.~Tofallis. A better measure of relative prediction accuracy for model selection and model estimation. \emph{Journal of the Operational Research Society}, 66(8), 2015.
+\bibitem{roberts} D.~R.~Roberts et al. Cross-validation strategies for data with temporal, spatial, hierarchical, or phylogenetic structure. \emph{Ecography}, 40(8), 2017.
+\bibitem{kaufman} S.~Kaufman, S.~Rosset, C.~Perlich, O.~Stitelman. Leakage in data mining: Formulation, detection, and avoidance. \emph{ACM Transactions on Knowledge Discovery from Data}, 6(4), 2012.
+\bibitem{ridge} A.~E.~Hoerl, R.~W.~Kennard. Ridge Regression: Biased Estimation for Nonorthogonal Problems. \emph{Technometrics}, 12(1), 1970.
+\bibitem{friedman} J.~H.~Friedman. Greedy function approximation: A gradient boosting machine. \emph{Annals of Statistics}, 29(5), 2001.
+\bibitem{lightgbm} G.~Ke et al. LightGBM: A Highly Efficient Gradient Boosting Decision Tree. \emph{NeurIPS}, 2017.
+\bibitem{adam} D.~P.~Kingma, J.~Ba. Adam: A Method for Stochastic Optimization. \emph{ICLR}, 2015.
+\bibitem{prechelt} L.~Prechelt. Early Stopping -- But When? In \emph{Neural Networks: Tricks of the Trade}, Springer, 1998.
+\bibitem{breiman} L.~Breiman. Random Forests. \emph{Machine Learning}, 45, 2001.
+\bibitem{datasetshift} J.~Quiñonero-Candela, M.~Sugiyama, A.~Schwaighofer, N.~D.~Lawrence (éd.). \emph{Dataset Shift in Machine Learning}. MIT Press, 2009.
+\bibitem{hampel} F.~R.~Hampel. The Influence Curve and its Role in Robust Estimation. \emph{Journal of the American Statistical Association}, 69(346), 1974.
+\bibitem{leys} C.~Leys, C.~Ley, O.~Klein, P.~Bernard, L.~Licata. Detecting outliers: Do not use standard deviation around the mean, use absolute deviation around the median. \emph{Journal of Experimental Social Psychology}, 49(4), 2013.
+\bibitem{mad} P.~J.~Rousseeuw, C.~Croux. Alternatives to the Median Absolute Deviation. \emph{Journal of the American Statistical Association}, 88(424), 1993.
+\end{thebibliography}
+
+\end{document}

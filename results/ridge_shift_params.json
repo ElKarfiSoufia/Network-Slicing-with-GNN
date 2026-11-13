@@ -1,0 +1,37 @@
+{
+ "features": [
+  "is_eMBB",
+  "is_URLLC",
+  "is_mMTC",
+  "log_offered",
+  "log_pkt_size",
+  "delta",
+  "wfq_weight",
+  "log_reserved",
+  "rho_q",
+  "rho_q_eff",
+  "log_port_cap",
+  "rho_port",
+  "n_queues_port",
+  "n_flows_q",
+  "hops",
+  "rho_path_max",
+  "rho_path_mean",
+  "n_over_path",
+  "log_cap_path_min",
+  "n_nodes",
+  "n_flows_sim",
+  "n_antennas",
+  "log_qdelay_full",
+  "log_path_delay_full"
+ ],
+ "best": {
+  "y_delay": {
+   "alpha": 0.01
+  },
+  "y_loss": {
+   "alpha": 0.01
+  }
+ },
+ "time_s": 1.905656099319458
+}

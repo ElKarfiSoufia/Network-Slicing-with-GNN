@@ -1,0 +1,17 @@
+naive : 0 s, {}
+ridge : 2 s, {'y_delay': {'alpha': 0.01}, 'y_loss': {'alpha': 100}}
+hgb : 319 s, {'y_delay': {'learning_rate': 0.1, 'max_leaf_nodes': 127, 'min_samples_leaf': 20}, 'y_loss': {'learning_rate': 0.05, 'max_leaf_nodes': 127, 'min_samples_leaf': 20}}
+mlp : 29 s, {'hidden': [128, 128]}
+ridge_no_reservation : 2 s, {'y_delay': {'alpha': 100}, 'y_loss': {'alpha': 0.01}}
+hgb_no_reservation : 191 s, {'y_delay': {'learning_rate': 0.1, 'max_leaf_nodes': 127, 'min_samples_leaf': 20}, 'y_loss': {'learning_rate': 0.1, 'max_leaf_nodes': 127, 'min_samples_leaf': 20}}
+mlp_no_reservation : 19 s, {'hidden': [128, 128]}
+ridge_no_charge : 2 s, {'y_delay': {'alpha': 0.01}, 'y_loss': {'alpha': 0.01}}
+hgb_no_charge : 168 s, {'y_delay': {'learning_rate': 0.05, 'max_leaf_nodes': 127, 'min_samples_leaf': 20}, 'y_loss': {'learning_rate': 0.05, 'max_leaf_nodes': 127, 'min_samples_leaf': 200}}
+mlp_no_charge : 17 s, {'hidden': [128, 128]}
+ridge_no_physique : 2 s, {'y_delay': {'alpha': 0.01}, 'y_loss': {'alpha': 0.01}}
+hgb_no_physique : 203 s, {'y_delay': {'learning_rate': 0.05, 'max_leaf_nodes': 127, 'min_samples_leaf': 200}, 'y_loss': {'learning_rate': 0.05, 'max_leaf_nodes': 127, 'min_samples_leaf': 20}}
+mlp_no_physique : 12 s, {'hidden': [128, 128]}
+naive_shift : 0 s, {}
+ridge_shift : 2 s, {'y_delay': {'alpha': 0.01}, 'y_loss': {'alpha': 0.01}}
+hgb_shift : 198 s, {'y_delay': {'learning_rate': 0.1, 'max_leaf_nodes': 127, 'min_samples_leaf': 20}, 'y_loss': {'learning_rate': 0.05, 'max_leaf_nodes': 127, 'min_samples_leaf': 20}}
+mlp_shift : 15 s, {'hidden': [128, 128]}

@@ -1,0 +1,36 @@
+{
+ "features": [
+  "is_eMBB",
+  "is_URLLC",
+  "is_mMTC",
+  "log_offered",
+  "log_pkt_size",
+  "log_port_cap",
+  "rho_port",
+  "n_queues_port",
+  "n_flows_q",
+  "hops",
+  "rho_path_max",
+  "rho_path_mean",
+  "n_over_path",
+  "log_cap_path_min",
+  "n_nodes",
+  "n_flows_sim",
+  "n_antennas",
+  "log_qdelay_full",
+  "log_path_delay_full"
+ ],
+ "best": {
+  "y_delay": {
+   "learning_rate": 0.1,
+   "max_leaf_nodes": 127,
+   "min_samples_leaf": 20
+  },
+  "y_loss": {
+   "learning_rate": 0.1,
+   "max_leaf_nodes": 127,
+   "min_samples_leaf": 20
+  }
+ },
+ "time_s": 191.26950645446777
+}

@@ -1,0 +1,322 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[french]{babel}
+\usepackage[a4paper,margin=2.2cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,fit}
+\usepackage{newunicodechar}
+\newunicodechar{→}{\ensuremath{\rightarrow}}
+\newunicodechar{ρ}{\ensuremath{\rho}}
+\newunicodechar{δ}{\ensuremath{\delta}}
+\newunicodechar{≈}{\ensuremath{\approx}}
+\usepackage{url}
+\usepackage[colorlinks=true,linkcolor=blue!50!black,urlcolor=blue!50!black]{hyperref}
+
+\graphicspath{{../figures/}{../../}}
+\definecolor{inptblue}{RGB}{0,114,188}
+\definecolor{muted}{HTML}{52514E}
+\definecolor{embb}{HTML}{2A78D6}
+\definecolor{urllc}{HTML}{EB6834}
+\definecolor{mmtc}{HTML}{1BAF7A}
+\titleformat{\section}{\Large\bfseries\color{inptblue}}{\thesection.}{0.5em}{}
+\titleformat{\subsection}{\large\bfseries}{\thesubsection}{0.5em}{}
+\pagestyle{fancy}\fancyhf{}
+\fancyhead[L]{\small Guide du code -- Projet SMARTICT}
+\fancyhead[R]{\small Network slicing B5G et GNN}
+\fancyfoot[C]{\thepage}
+\setlength{\headheight}{14pt}
+\setlength{\parskip}{0.35em}\setlength{\parindent}{0pt}
+\renewcommand{\arraystretch}{1.18}
+\sloppy\setlength{\emergencystretch}{3em}
+\newcommand{\f}[1]{\texttt{#1}}
+\newcommand{\fiche}[4]{%
+\noindent\begin{tabularx}{\linewidth}{@{}>{\bfseries}p{2.6cm}X@{}}
+\toprule
+Rôle & #1\\
+Entrées & #2\\
+Sorties & #3\\
+Lancer & #4\\
+\bottomrule
+\end{tabularx}\par\medskip}
+
+\begin{document}
+
+\begin{center}
+\includegraphics[width=3.2cm]{INPT.png}\\[0.6cm]
+{\LARGE\bfseries\color{inptblue} Guide du code}\\[0.25cm]
+{\large AI-Based Dynamic Resource Allocation for B5G Network Slicing}\\[0.15cm]
+{\normalsize Projet SMARTICT -- INPT, filière Smart ICT}
+\end{center}
+\vspace{0.4cm}
+
+Ce guide explique \textbf{ce que contient chaque fichier du projet}, comment les fichiers s'enchaînent, et \textbf{où trouver} chaque élément de la démarche (une feature, la définition des événements, le GNN, l'ablation…). Il sert à la fois à relire le code et à préparer la soutenance. Les justifications scientifiques des choix sont développées dans le rapport ; ici on indique \emph{où} elles sont implémentées.
+
+\tableofcontents
+
+%=====================================================================
+\section{Vue d'ensemble}
+%=====================================================================
+\subsection{Arborescence}
+\begin{tabularx}{\linewidth}{@{}>{\ttfamily}p{5.9cm}X@{}}
+\toprule
+\normalfont\bfseries Chemin & \bfseries Contenu\\
+\midrule
+projet\_B5G\_slicing\_GNN.ipynb & notebook exécuté : toute la démarche, avec les sorties\\
+code/ & tout le code Python (détaillé à la section~\ref{sec:fichiers})\\
+data/raw/ & dataset brut (Zenodo) : archive, fichiers extraits, \f{features.pdf}, \f{datanetAPI.py}\\
+data/processed/ & tables Parquet et graphes produits par le code\\
+results/ & prédictions, historiques, poids des GNN, tableaux LaTeX, journaux\\
+figures/ & figures produites par le notebook (utilisées par le rapport et la présentation)\\
+rapport/ & sources LaTeX et PDF du rapport, source de ce guide\\
+presentation/ & présentation \f{.pptx} et son script de génération \f{build\_deck.js}\\
+README.md & résumé du projet et instructions de reproduction\\
+\bottomrule
+\end{tabularx}
+
+\subsection{Le pipeline}
+\begin{center}
+\begin{tikzpicture}[>=Stealth, font=\small, node distance=4mm,
+  file/.style={draw=muted, fill=black!4, rounded corners=2pt, align=center, minimum height=8mm, text width=3.3cm},
+  code/.style={draw=inptblue, fill=inptblue!10, rounded corners=2pt, align=center, minimum height=8mm, text width=3.3cm, font=\small\ttfamily}]
+\node[file] (raw) {archives brutes\\\scriptsize data/raw/};
+\node[code, right=8mm of raw] (ext) {extraction.py};
+\node[file, right=8mm of ext] (tab) {samples, flows,\\links, queues\\\scriptsize .parquet};
+\node[code, below=8mm of tab] (prep) {preparation.py\\\scriptsize\normalfont(features.py, gnn.py)};
+\node[file, left=8mm of prep] (cls) {flow\_classes.parquet\\graphs.pkl};
+\node[code, below=8mm of cls] (tabm) {run\_tabular.py};
+\node[code, left=8mm of tabm] (gnnm) {run\_gnn.py\\\scriptsize\normalfont(gnn.py)};
+\node[file, below=8mm of tabm] (res) {results/\\\scriptsize *\_preds.parquet};
+\node[code, right=8mm of res] (nb) {notebook\\\scriptsize\normalfont(evaluation.py)};
+\node[file, right=8mm of nb, text width=2.6cm] (out) {figures/, tableaux,\\deck\_data.json};
+\draw[->] (raw)--(ext); \draw[->] (ext)--(tab); \draw[->] (tab)--(prep); \draw[->] (prep)--(cls);
+\draw[->] (cls)--(tabm); \draw[->] (cls.west) -| (gnnm.north);
+\draw[->] (tabm)--(res); \draw[->] (gnnm) |- (res.west); \draw[->] (res)--(nb); \draw[->] (nb)--(out);
+\node[code, above=8mm of out] (deck) {build\_deck.js};
+\draw[->] (out)--(deck);
+\end{tikzpicture}
+\end{center}
+En pratique : \f{bash code/run\_all.sh} exécute tout le pipeline jusqu'aux prédictions ; le notebook relit ensuite les résultats en cache et produit figures et tableaux ; \f{build\_deck.js} construit la présentation.
+
+\subsection{Trois conventions à connaître}
+\begin{enumerate}
+  \item \textbf{Une ligne = une classe de flux.} Les flux aux entrées identiques sont regroupés (fonction \f{features.deduplicate}) ; la colonne \f{w} donne le nombre de flux de la classe. Toutes les métriques et pertes sont pondérées par \f{w}, ce qui équivaut exactement à un calcul flux par flux.
+  \item \textbf{L'identifiant \f{row}} d'une classe de flux relie tout : chaque fichier de prédictions \f{results/<modèle>\_preds.parquet} contient \f{row}, \f{part} (\f{val} ou \f{test}), \f{p\_delay} et \f{p\_loss}.
+  \item \textbf{Entrées seulement.} Les colonnes \f{meas\_*} (utilisation, pertes mesurées) sont des sorties du simulateur : elles ne sont jamais utilisées comme features.
+\end{enumerate}
+
+%=====================================================================
+\section{Les fichiers du dossier \texttt{code/}}\label{sec:fichiers}
+%=====================================================================
+
+\subsection{\texttt{extraction.py} : lire le dataset brut}
+\fiche{Parser les 79 archives du simulateur et produire quatre tables propres. Remplace le parseur fourni \f{datanetAPI.py}, qui n'est jamais exécuté (il décode les JSON avec \f{jsonpickle}, qui peut exécuter du code).}
+{\f{data/raw/2.2.1-10kprocessed/} : \f{graphs/}, \f{routings/}, \f{slices/}, \f{results\_*.tar.gz}}
+{\f{data/processed/samples|flows|links|queues.parquet}, \f{extraction\_errors.csv}}
+{\f{python code/extraction.py -{}-workers 14} (≈ 6~min)}
+\begin{tabularx}{\linewidth}{@{}>{\ttfamily}p{3.6cm}X@{}}
+\toprule
+\normalfont\bfseries Fonction & \bfseries Ce qu'elle fait\\
+\midrule
+parse\_queues & lit les files WFQ d'un port : poids (\f{schedulingWeights}, \emph{par port}) et ToS servis (\f{tosToQoSqueue}, \emph{par nœud})\\
+pkt\_size\_mean & taille moyenne réelle des paquets ; corrige le champ incohérent de la loi binomiale (eMBB : 15\,000 bits et non 6\,000)\\
+routing\_paths & reconstruit les chemins depuis le fichier de routage. \textbf{Point critique} : le champ \f{path} des slices est faux pour 42\,\% des flux\\
+parse\_sample & une simulation $\to$ lignes des quatre tables (liens, flux, files WFQ, simulation)\\
+process\_tar & lit une archive en avançant ligne par ligne dans ses 5 fichiers ; écarte les simulations non stables\\
+main & parallélise sur les archives et écrit les fichiers Parquet\\
+\bottomrule
+\end{tabularx}
+
+\subsection{\texttt{features.py} : les 24 features et les cibles}
+\fiche{Calculer, pour chaque flux, des features issues des seules entrées, et les deux cibles.}
+{les 4 tables de \f{extraction.py}}
+{(en mémoire) table des flux, liens enrichis, files enrichies ; utilisé par \f{preparation.py}}
+{module importé (pas de lancement direct)}
+\begin{tabularx}{\linewidth}{@{}>{\ttfamily}p{3.6cm}X@{}}
+\toprule
+\normalfont\bfseries Élément & \bfseries Contenu\\
+\midrule
+FEATURE\_GROUPS & les 6 familles de features (slice, réservation, port d'antenne, chemin, réseau, physique) utilisées pour l'ablation\\
+link\_loads & charge offerte $\rho$ de chaque lien, nombre de flux, délai de file pleine\\
+queue\_features & débit réservé, part WFQ \emph{effective} (redistribution GPS), $\rho$ de la file et du port\\
+build\_flow\_table & assemble les features par flux, les logarithmes et les cibles \f{y\_delay} (log10 délai) et \f{y\_loss}\\
+deduplicate & regroupe les flux identiques en classes de poids \f{w}\\
+\bottomrule
+\end{tabularx}
+
+\subsection{\texttt{preparation.py} : classes de flux, événements, graphes}
+\fiche{Enchaîner features, dédoublonnage, masque d'événements et construction des graphes ; tout mettre en cache.}
+{les 4 tables de \f{extraction.py}}
+{\f{flow\_classes.parquet}, \f{links\_feat.parquet}, \f{queues\_feat.parquet}, \f{graphs.pkl}}
+{\f{python code/preparation.py} (≈ 3~min) ; \f{-{}-events-only} pour ne recalculer que le masque}
+\begin{tabularx}{\linewidth}{@{}>{\ttfamily}p{3.6cm}X@{}}
+\toprule
+\normalfont\bfseries Élément & \bfseries Contenu\\
+\midrule
+Z\_EVENT, MAD\_FLOOR & seuil de Hampel (3) et plancher de dispersion (0,02 décade)\\
+event\_mask & charge du goulot $b$, écart robuste $z$ de $\log_{10}b$ par (topologie, slice), étiquette \f{normal} / \f{surcharge} / \f{délestage}\\
+events\_only & recalcule seulement le masque, sans toucher aux identifiants \f{row}\\
+main & pipeline complet de préparation\\
+\bottomrule
+\end{tabularx}
+
+\subsection{\texttt{splits.py} : découpages sans fuite}
+\fiche{Définir train / validation / test par topologies entières.}
+{\f{samples.parquet}}
+{dictionnaire de numéros de simulations par partie}
+{module importé}
+\f{make\_splits} renvoie deux découpages : \f{"topo"} (topologies tirées au hasard, 70/15/15\,\%) et \f{"shift"} (les plus grands réseaux en test). La graine \f{SEED = 42} rend les découpages identiques pour tous les modèles. \f{describe} produit le tableau récapitulatif.
+
+\subsection{\texttt{gnn.py} : le modèle SliceGNN}
+\fiche{Construire les graphes et définir, entraîner, évaluer le GNN.}
+{tables de \f{preparation.py}}
+{graphes (dans \f{graphs.pkl}), modèle, prédictions}
+{module importé par \f{preparation.py} et \f{run\_gnn.py}}
+\begin{tabularx}{\linewidth}{@{}>{\ttfamily}p{3.6cm}X@{}}
+\toprule
+\normalfont\bfseries Élément & \bfseries Contenu\\
+\midrule
+FLOW\_X, QUEUE\_X, LINK\_X & attributs d'entrée des trois types de nœuds\\
+build\_graphs & une simulation $\to$ un graphe : attributs, chemins ordonnés (\f{path}), file de chaque flux (\f{fq})\\
+Normalizer & standardisation apprise sur le train uniquement\\
+collate & assemble plusieurs graphes en un lot ; neutralise les colonnes retirées (ablation)\\
+SliceGNN & encodeurs, GRU le long des chemins, mises à jour des liens et des files, lecture ; options \f{T} et \f{use\_queues} pour l'ablation\\
+masked\_mse, weighted\_mae & perte et métrique pondérées par \f{w}, cibles manquantes ignorées\\
+train & Adam, arrêt précoce, réduction du taux d'apprentissage, écrêtage du gradient\\
+predict & prédictions remises à l'échelle d'origine\\
+\bottomrule
+\end{tabularx}
+Lecture de \f{SliceGNN.forward}, dans l'ordre : (1) encodage des trois types de nœuds ; (2) boucle de $T$ itérations : le GRU lit le chemin de chaque flux (\f{path\_rnn}), puis chaque lien moyenne les états des flux qui le traversent (\f{m\_l}, \f{upd\_l}) et chaque file ceux des flux qu'elle sert (\f{m\_q}, \f{upd\_q}) ; (3) lecture \f{read}.
+
+\subsection{\texttt{run\_gnn.py} : entraîner une configuration du GNN}
+\fiche{Entraîner une variante du GNN et sauvegarder ses résultats.}
+{\f{graphs.pkl}, \f{samples.parquet}}
+{\f{results/<nom>\_log.txt}, \f{\_history.csv}, \f{.pt}, \f{\_preds.parquet}}
+{\f{python code/run\_gnn.py -{}-name gnn [-{}-T 0] [-{}-no-queues] [-{}-drop famille] [-{}-split shift] [-{}-seed 1] [-{}-device cuda]}}
+Le dictionnaire \f{DROP} définit, pour chaque famille de l'ablation, les colonnes à neutraliser dans chaque type de nœud. La famille \f{allocation} = réservation + physique.
+
+\subsection{\texttt{run\_tabular.py} : modèles sans graphe}
+\fiche{Entraîner le modèle naïf, Ridge, le Gradient Boosting et le MLP, avec choix des hyperparamètres sur la validation.}
+{\f{flow\_classes.parquet}, \f{samples.parquet}}
+{\f{results/<modèle>[\_shift][\_no\_famille]\_preds.parquet} et \f{\_params.json}}
+{\f{python code/run\_tabular.py [-{}-split shift] [-{}-drop famille] [-{}-models hgb,mlp] [-{}-force]}}
+Fonctions \f{fit\_naive}, \f{fit\_ridge}, \f{fit\_hgb}, \f{fit\_mlp} : même interface (train, val, test, features). \f{run} entraîne ce qui manque dans le cache (appelé par le notebook).
+
+\subsection{\texttt{evaluation.py} : métriques}
+\f{load\_meta} charge cibles, poids et étiquettes d'événement ; \f{load\_preds} joint les prédictions d'un modèle ; \f{metrics} calcule MAE et MSE pondérées ; \f{evaluate} produit le tableau global / hors événement / événement / surcharge / délestage.
+
+\subsection{\texttt{run\_all.sh}, \texttt{notebook\_cells.py}, \texttt{build\_notebook.py}, \texttt{build\_deck.js}}
+\begin{itemize}
+  \item \f{run\_all.sh} : pipeline complet (extraction, préparation, 10 entraînements GNN en deux chaînes GPU, modèles tabulaires sur CPU). Journaux dans \f{results/logs/}.
+  \item \f{notebook\_cells.py} : source du notebook, écrite en Python (cellules \f{md(...)} et \f{code(...)}) pour être relue et modifiée comme du code ; \f{build\_notebook.py} la convertit en \f{.ipynb}.
+  \item \f{presentation/build\_deck.js} : génère la présentation (pptxgenjs) à partir de \f{results/deck\_data.json} et des figures ; contient aussi le discours (notes de l'orateur).
+\end{itemize}
+
+%=====================================================================
+\section{Le notebook, section par section}
+%=====================================================================
+\begin{tabularx}{\linewidth}{@{}p{3.4cm}X>{\raggedright\arraybackslash}p{3.4cm}@{}}
+\toprule
+\bfseries Section & \bfseries Ce qu'on y trouve & \bfseries Produit\\
+\midrule
+1. Exploration (L1) & fichiers, tables, dictionnaire des variables, qualité, anomalies, vérification de l'extraction, distributions, coude de saturation, corrélations & \f{fig\_targets}, \f{fig\_inputs}, \f{fig\_knee}, \f{fig\_corr}\\
+2. Formulation (L2) & cible, justification, hypothèses H1--H3, protocole, découpages, contexte SLA & tableau des découpages\\
+3. Baselines (L3) & familles de features, variance expliquée par groupe, naïf et Ridge & résultats des baselines\\
+4. Événements (L4) & définition, règle de Hampel, tableau par type, vérification visuelle & \f{fig\_events\_z}, \f{fig\_events\_topo}\\
+5. Graphe et GNN (L5) & graphe hétérogène, architecture, hyperparamètres, courbes d'apprentissage & \f{fig\_graph}, \f{fig\_training}\\
+6. Comparaison (L6) & global / événements, graines, erreur selon $z$, par slice, prédit/réel, SLA, ablation, importance, décalage & \f{fig\_comparison}, \f{fig\_errors\_z}, \f{fig\_scatter}, \f{fig\_ablation}, \f{fig\_importance}, \f{fig\_shift}\\
+7. Analyse & réponses aux questions du guide, limites, références, export des tableaux & \f{results/tables/*.tex}, \f{deck\_data.json}\\
+\bottomrule
+\end{tabularx}
+
+%=====================================================================
+\section{Fichiers de données et de résultats}
+%=====================================================================
+\subsection{\texttt{data/processed/}}
+\begin{tabularx}{\linewidth}{@{}>{\ttfamily}p{4.2cm}X@{}}
+\toprule
+\normalfont\bfseries Fichier & \bfseries Une ligne = … ; colonnes principales\\
+\midrule
+samples.parquet & une simulation : \f{sim}, \f{topology}, \f{n\_nodes}, \f{n\_flows}, \f{sim\_time}\\
+flows.parquet & un flux : \f{slice\_type}, \f{delta}, \f{pkt\_size}, \f{avg\_pkts\_lambda}, \f{path}, \f{links}, \f{wfq\_queue}, \f{wfq\_weight}, QoS mesurée (\f{delay}, \f{pkts\_drop}…), \f{slice\_path\_ok}\\
+links.parquet & un lien orienté : \f{capacity}, \f{meas\_util}, \f{meas\_loss}, \f{sched}\\
+queues.parquet & une file WFQ active : \f{antenna}, \f{next\_hop}, \f{queue}, \f{weight}, \f{offered}, mesures\\
+flow\_classes.parquet & une classe de flux : 24 features, \f{y\_delay}, \f{y\_loss}, \f{w}, \f{b}, \f{z}, \f{event\_type}, \f{row}\\
+links\_feat / queues\_feat & tables enrichies (\f{rho}, \f{rate\_eff}, \f{full\_delay}…)\\
+graphs.pkl & dictionnaire \{simulation : graphe\} pour le GNN\\
+\bottomrule
+\end{tabularx}
+
+\subsection{\texttt{results/}}
+Noms : \f{<modèle>[\_shift][\_no\_<famille>]}, avec modèle $\in$ \{\f{naive}, \f{ridge}, \f{hgb}, \f{mlp}, \f{gnn}\} et famille $\in$ \{\f{reservation}, \f{charge}, \f{physique}, \f{allocation}\}. Variantes du GNN : \f{gnn\_T0}, \f{gnn\_noqueue}, \f{gnn\_seed1}, \f{gnn\_seed2}. Le sous-dossier \f{tables/} contient les tableaux LaTeX du rapport ; \f{logs/} les journaux d'exécution.
+
+%=====================================================================
+\section{« Où est… ? » : aide-mémoire pour la soutenance}
+%=====================================================================
+\begin{tabularx}{\linewidth}{@{}>{\raggedright}p{6.2cm}>{\raggedright\arraybackslash}X@{}}
+\toprule
+\bfseries Question & \bfseries Fichier : fonction\\
+\midrule
+Comment les chemins sont-ils reconstruits ? & \f{extraction.py : routing\_paths}\\
+Comment sait-on quelle file WFQ sert un flux ? & \f{extraction.py : parse\_queues, parse\_sample}\\
+Où est corrigée la taille des paquets ? & \f{extraction.py : pkt\_size\_mean}\\
+Où sont calculées les charges $\rho$ ? & \f{features.py : link\_loads, queue\_features}\\
+Où est la part WFQ effective (GPS) ? & \f{features.py : queue\_features} (\f{rate\_eff}, \f{rho\_q\_eff})\\
+Où sont les features physiques ? & \f{features.py : build\_flow\_table} (étape 3)\\
+Où sont définies les cibles ? & \f{features.py : build\_flow\_table} (étape 5)\\
+Où est le regroupement en classes ? & \f{features.py : deduplicate}\\
+Où est calculé $b$, $z$, l'événement ? & \f{preparation.py : event\_mask}\\
+Comment éviter la fuite d'information ? & \f{splits.py} (topologies disjointes), \f{gnn.Normalizer} (train seul), features d'entrée seulement\\
+Où est le graphe ? & \f{gnn.py : build\_graphs}\\
+Où est le passage de messages ? & \f{gnn.py : SliceGNN.forward}\\
+Où est l'arrêt précoce ? & \f{gnn.py : train} ; \f{run\_tabular.py : fit\_mlp}\\
+Comment est faite l'ablation ? & \f{run\_gnn.py : DROP} et options \f{-{}-T 0}, \f{-{}-no-queues} ; \f{run\_tabular.py : DROP}\\
+Où sont choisis les hyperparamètres ? & \f{run\_tabular.py : fit\_ridge, fit\_hgb} (grilles sur la validation)\\
+Comment sont calculées les métriques ? & \f{evaluation.py : metrics, evaluate}\\
+Où est l'analyse SLA ? & notebook, section 6.2\\
+\bottomrule
+\end{tabularx}
+
+%=====================================================================
+\section{Modifier et relancer}
+%=====================================================================
+\begin{description}[style=nextline]
+  \item[Changer le seuil d'événement] modifier \f{Z\_EVENT} dans \f{preparation.py}, puis \f{python code/preparation.py -{}-events-only} et ré-exécuter le notebook (aucun ré-entraînement nécessaire : le masque ne sert qu'à l'évaluation).
+  \item[Ajouter une feature] la calculer dans \f{features.build\_flow\_table}, l'ajouter à une famille de \f{FEATURE\_GROUPS}, relancer \f{preparation.py}, puis les modèles avec \f{-{}-force}.
+  \item[Changer un hyperparamètre du GNN] options de \f{run\_gnn.py} (\f{-{}-d}, \f{-{}-T}, \f{-{}-lr}, \f{-{}-epochs}, \f{-{}-patience}, \f{-{}-batch}) ; donner un nouveau \f{-{}-name} pour ne pas écraser les résultats.
+  \item[Relancer un seul modèle] supprimer son fichier \f{results/<nom>\_preds.parquet}, ou utiliser \f{-{}-force} (tabulaire), puis ré-exécuter le notebook.
+  \item[Tout recalculer] \f{bash code/run\_all.sh}, puis notebook avec \f{FORCE = True}.
+\end{description}
+
+%=====================================================================
+\section{Glossaire des colonnes principales}
+%=====================================================================
+\begin{tabularx}{\linewidth}{@{}>{\ttfamily}p{3.4cm}X@{}}
+\toprule
+\normalfont\bfseries Colonne & \bfseries Signification\\
+\midrule
+delta & paramètre de réservation de la slice, dans $[0,1]$\\
+wfq\_weight & poids WFQ (\%) de la file du flux au port de l'antenne\\
+offered & débit offert réel = paquets/s $\times$ taille moyenne (bit/s)\\
+rho\_q, rho\_q\_eff & charge de la file / réservation nominale, et / part effective\\
+rho\_port & charge du port de l'antenne / sa capacité\\
+rho\_path\_max & charge maximale des liens de transport du chemin\\
+log\_qdelay\_full & log10 du temps pour vider une file pleine (32 paquets) au débit effectif\\
+b, log\_b, z & charge du goulot, son log, écart robuste au régime habituel\\
+event\_type & \f{normal}, \f{surcharge} ($z\ge3$) ou \f{délestage} ($z\le-3$)\\
+y\_delay, y\_loss & cibles : log10 du délai moyen (s) et taux de pertes\\
+w, row & nombre de flux de la classe ; identifiant de la classe\\
+\bottomrule
+\end{tabularx}
+
+\end{document}

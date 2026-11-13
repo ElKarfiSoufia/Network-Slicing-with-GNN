@@ -1,0 +1,28 @@
+\begin{tabular}{llrrrr}
+\toprule
+Modèle & Variante & MAE délai & Δ MAE délai & MAE pertes & Δ MAE pertes \\
+\midrule
+Ridge & complet & 0{,}522 & 0{,}000 & 0{,}132 & 0{,}000 \\
+Ridge & sans réservation & 0{,}553 & 0{,}031 & 0{,}140 & 0{,}008 \\
+Ridge & sans charge & 0{,}556 & 0{,}034 & 0{,}176 & 0{,}045 \\
+Ridge & sans physique & 0{,}605 & 0{,}084 & 0{,}133 & 0{,}001 \\
+Ridge & sans allocation & 0{,}605 & 0{,}083 & 0{,}154 & 0{,}022 \\
+Gradient Boosting & complet & 0{,}276 & 0{,}000 & 0{,}067 & 0{,}000 \\
+Gradient Boosting & sans réservation & 0{,}314 & 0{,}037 & 0{,}077 & 0{,}010 \\
+Gradient Boosting & sans charge & 0{,}429 & 0{,}153 & 0{,}152 & 0{,}085 \\
+Gradient Boosting & sans physique & 0{,}279 & 0{,}002 & 0{,}068 & 0{,}001 \\
+Gradient Boosting & sans allocation & 0{,}453 & 0{,}176 & 0{,}128 & 0{,}061 \\
+MLP & complet & 0{,}343 & 0{,}000 & 0{,}082 & 0{,}000 \\
+MLP & sans réservation & 0{,}361 & 0{,}018 & 0{,}092 & 0{,}010 \\
+MLP & sans charge & 0{,}448 & 0{,}105 & 0{,}154 & 0{,}073 \\
+MLP & sans physique & 0{,}367 & 0{,}024 & 0{,}094 & 0{,}013 \\
+MLP & sans allocation & 0{,}469 & 0{,}126 & 0{,}129 & 0{,}048 \\
+GNN & complet & 0{,}175 & 0{,}000 & 0{,}045 & 0{,}000 \\
+GNN & sans réservation & 0{,}179 & 0{,}004 & 0{,}046 & 0{,}001 \\
+GNN & sans charge & 0{,}367 & 0{,}192 & 0{,}120 & 0{,}075 \\
+GNN & sans physique & 0{,}182 & 0{,}008 & 0{,}043 & -0{,}002 \\
+GNN & sans allocation & 0{,}402 & 0{,}227 & 0{,}114 & 0{,}069 \\
+GNN & T = 0 (sans interactions) & 0{,}240 & 0{,}065 & 0{,}062 & 0{,}017 \\
+GNN & sans nœuds file & 0{,}428 & 0{,}254 & 0{,}098 & 0{,}053 \\
+\bottomrule
+\end{tabular}
